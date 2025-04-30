@@ -274,6 +274,11 @@ async function loadData() {
   let shipments;
   try {
     shipments = await fetch(`/api/shipments?${query}`).then(r => r.json());
+    if (shipments.length === 0) {
+      showToast('No shipments found for the selected criteria', 'info');
+      setLoading(false);
+      return;
+    }
   } catch (e) {
     showToast('Failed to load shipments', 'error');
     setLoading(false);
