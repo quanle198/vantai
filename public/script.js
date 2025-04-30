@@ -82,36 +82,41 @@ async function fetchRouteORS(orig, dest) {
     console.warn('Điểm ngoài Việt Nam, dùng đường thẳng');
     return [orig, dest];
   }
+
   const body = {
     coordinates: [[orig[1], orig[0]], [dest[1], dest[0]]],
     preference: 'recommended',
     geometry_simplify: true,
     options: {
-        avoid_borders: 'all',
-        avoid_countries: [11, 193]
+      avoid_borders: 'all',
+      avoid_countries: [11, 193]
     }
   };
-  try {
-    const resp = await fetch('https://api.openrouteservice.org/v2/directions/driving-car/geojson', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': ORS_API_KEY
-      },
-      body: JSON.stringify(body)
-    });
-    if (!resp.ok) {
-      throw new Error(await resp.text());
+
+  while (true) {
+    try {
+      const resp = await fetch('https://api.openrouteservice.org/v2/directions/driving-car/geojson', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': ORS_API_KEY
+        },
+        body: JSON.stringify(body)
+      });
+
+      if (!resp.ok) {
+        throw new Error(await resp.text());
+      }
+
+      const geo = await resp.json();
+      let path = geo.features[0].geometry.coordinates.map(([lon, lat]) => [lat, lon]);
+      path = path.filter(([lat, lon]) => isInVietnam(lat, lon));
+      return path.length >= 2 ? path : [orig, dest];
+    } catch (e) {
+      console.error('❌ ORS lỗi, thử lại:', e);
+      // Có thể thêm delay giữa các lần retry nếu cần
+      await new Promise(resolve => setTimeout(resolve, 1000)); // Chờ 1 giây trước khi retry
     }
-    const geo = await resp.json();
-    let path = geo.features[0].geometry.coordinates.map(([lon, lat]) => [lat, lon]);
-    path = path.filter(([lat, lon]) => isInVietnam(lat, lon));
-    return path.length >= 2 ? path : [orig, dest];
-  } catch (e) {
-    console.error('❌ ORS lỗi:', e);
-    alert('Lỗi khi lấy đường đi: ' + e.message);
-    // Nếu lỗi, trả về đường thẳng giữa 2 điểm
-    return [orig, dest];
   }
 }
 
@@ -240,10 +245,10 @@ async function createTrip(event) {
   }
 
   // Xác nhận trước khi tạo
-  const confirmMsg = `Xác nhận tạo chuyến đi:\n- Từ: ${originWarehouse.WarehouseName} (${origin.join(',')})\n- Đến: ${destWarehouse.WarehouseName} (${dest.join(',')})\n- Loại xe: ${vehicleType}\n- Ngày: ${tripDate}\n- Trọng lượng: ${weight} kg`;
-  if (!confirm(confirmMsg)) {
-    return;
-  }
+  // const confirmMsg = `Xác nhận tạo chuyến đi:\n- Từ: ${originWarehouse.WarehouseName} (${origin.join(',')})\n- Đến: ${destWarehouse.WarehouseName} (${dest.join(',')})\n- Loại xe: ${vehicleType}\n- Ngày: ${tripDate}\n- Trọng lượng: ${weight} kg`;
+  // if (!confirm(confirmMsg)) {
+  //   return;
+  // }
 
   // Gọi ORS để kiểm tra tuyến đường
   const path = await fetchRouteORS(origin, dest);
@@ -340,12 +345,12 @@ async function loadData() {
   }
 
   // Thống kê biểu đồ
-  const daily = {};
+  //const daily = {};
   for (const [code, v] of Object.entries(byVeh)) {
     let acc = 0;
     for (const seg of v.segments) {
-      const day = seg.date.substr(0, 10);
-      daily[day] = (daily[day] || 0) + seg.weight;
+      //const day = seg.date.substr(0, 10);
+      //daily[day] = (daily[day] || 0) + seg.weight;
       const path = await fetchRouteORS(seg.origin, seg.dest);
       L.polyline(path, { color: 'blue', weight: seg.weight/1000 + 1 }).addTo(map);
       drawVietnamBorder();
@@ -353,7 +358,7 @@ async function loadData() {
         const [lat1, lon1] = path[i-1], [lat2, lon2] = path[i];
         const d = haversine(lat1, lon1, lat2, lon2);
         const speed = Math.random() * 30 + 30;
-        const t = d / speed * 3600 * 1000;
+        const t = (d / speed * 3600 * 1000) / 1000;
         v.totalDist += d;
         acc += t;
         setTimeout(() => {
@@ -364,13 +369,13 @@ async function loadData() {
     }
   }
 
-  const labels = Object.keys(daily).sort();
-  const values = labels.map(d => daily[d]);
-  new Chart(document.getElementById('chart'), {
-    type: 'bar',
-    data: { labels, datasets: [{ label: 'Tổng KG', data: values }] },
-    options: { responsive: true }
-  });
+  // const labels = Object.keys(daily).sort();
+  // const values = labels.map(d => daily[d]);
+  // new Chart(document.getElementById('chart'), {
+  //   type: 'bar',
+  //   data: { labels, datasets: [{ label: 'Tổng KG', data: values }] },
+  //   options: { responsive: true }
+  // });
 }
 
 // Tải dữ liệu khi mở trang
