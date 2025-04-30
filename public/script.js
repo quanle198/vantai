@@ -1,13 +1,14 @@
 const ORS_API_KEY = '5b3ce3597851110001cf624890d06adad991446084ec1827f4f2b67d';
-
 const map = L.map('map').setView([16, 106], 6);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-// Biến toàn cục lưu danh sách kho
 let warehouses = [];
-let verhicles = [];
+let vehicles = [];
+let vietnamPolygons = [];
+let geoReady = false;
+let isLoading = false;
 
-// Haversine
+// Haversine Formula
 function haversine(lat1, lon1, lat2, lon2) {
   const R = 6371, r = Math.PI / 180;
   const dLat = (lat2 - lat1) * r, dLon = (lon2 - lon1) * r;
@@ -15,10 +16,7 @@ function haversine(lat1, lon1, lat2, lon2) {
   return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
 
-let vietnamPolygons = [];
-let geoReady = false;
-
-// Kiểm tra điểm có nằm trong Việt Nam (polygon)
+// Point-in-Polygon Check
 function isPointInPolygon(point, polygon) {
   const [x, y] = point;
   let inside = false;
@@ -32,15 +30,16 @@ function isPointInPolygon(point, polygon) {
   return inside;
 }
 
+// Check if Point is in Vietnam
 function isInVietnam(lat, lon) {
   if (!geoReady) return false;
   return vietnamPolygons.some(polygon => isPointInPolygon([lon, lat], polygon));
 }
 
-// Tải GeoJSON Việt Nam
+// Load Vietnam GeoJSON
 async function loadVietnamGeoJSON() {
   try {
-    const response = await fetch('../vietnam.geojson');
+    const response = await fetch('/vietnam.geojson');
     const geojson = await response.json();
     if (geojson.type === "FeatureCollection") {
       geojson.features.forEach(f => extractPolygons(f.geometry));
@@ -49,13 +48,14 @@ async function loadVietnamGeoJSON() {
     }
     geoReady = true;
     drawVietnamBorder();
-    console.log('✅ Tải GeoJSON thành công');
+    console.log('✅ Loaded Vietnam GeoJSON');
   } catch (e) {
-    console.error('❌ Lỗi tải GeoJSON:', e);
+    console.error('❌ Failed to load GeoJSON:', e);
+    showToast('Failed to load Vietnam borders', 'error');
   }
 }
 
-// Tách polygon/multipolygon
+// Extract Polygons
 function extractPolygons(geometry) {
   if (geometry.type === "Polygon") {
     vietnamPolygons.push(geometry.coordinates[0]);
@@ -64,7 +64,7 @@ function extractPolygons(geometry) {
   }
 }
 
-// Vẽ biên giới Việt Nam
+// Draw Vietnam Border
 function drawVietnamBorder() {
   vietnamPolygons.forEach(polygon => {
     L.polygon(polygon.map(([x, y]) => [y, x]), {
@@ -73,10 +73,7 @@ function drawVietnamBorder() {
   });
 }
 
-// Gọi ngay khi mở trang
-loadVietnamGeoJSON();
-
-// Lấy route từ ORS
+// Fetch ORS Route via Backend
 async function fetchRouteORS(orig, dest) {
   if (!isInVietnam(orig[0], orig[1]) || !isInVietnam(dest[0], dest[1])) {
     console.warn('Điểm ngoài Việt Nam, dùng đường thẳng');
@@ -120,16 +117,17 @@ async function fetchRouteORS(orig, dest) {
   }
 }
 
-// Tải danh sách kho và hiển thị tọa độ
+// Load Warehouses
 async function loadWarehouses() {
   try {
     warehouses = await fetch('/api/warehouses').then(r => r.json());
     const select = document.getElementById('destWarehouse');
     const originSelect = document.getElementById('tripOriginWarehouse');
     const destSelect = document.getElementById('tripDestWarehouse');
-    select.innerHTML = '<option value="">Tất cả</option>';
-    originSelect.innerHTML = '<option value="">Chọn kho xuất phát</option>';
-    destSelect.innerHTML = '<option value="">Chọn kho đích</option>';
+    select.innerHTML = '<option value="">All Warehouses</option>';
+    originSelect.innerHTML = '<option value="">Select Origin</option>';
+    destSelect.innerHTML = '<option value="">Select Destination</option>';
+
     warehouses.forEach(w => {
       const opt = document.createElement('option');
       opt.value = w.WarehouseID;
@@ -139,63 +137,58 @@ async function loadWarehouses() {
       destSelect.appendChild(opt.cloneNode(true));
     });
 
-    // Thêm sự kiện change để hiển thị tọa độ
-    originSelect.addEventListener('change', () => {
-      const warehouseID = originSelect.value;
-      const warehouse = warehouses.find(w => w.WarehouseID.toString() === warehouseID);
-      const coordsDisplay = document.getElementById('originCoords');
-      if (warehouse && warehouse.Lat && warehouse.Lng) {
-        coordsDisplay.textContent = `Tọa độ: ${warehouse.Lat.toFixed(6)}, ${warehouse.Lng.toFixed(6)}`;
-      } else {
-        coordsDisplay.textContent = warehouseID ? 'Tọa độ: Không có dữ liệu' : 'Tọa độ: Chưa chọn';
-      }
-    });
-
-    destSelect.addEventListener('change', () => {
-      const warehouseID = destSelect.value;
-      const warehouse = warehouses.find(w => w.WarehouseID.toString() === warehouseID);
-      const coordsDisplay = document.getElementById('destCoords');
-      if (warehouse && warehouse.Lat && warehouse.Lng) {
-        coordsDisplay.textContent = `Tọa độ: ${warehouse.Lat.toFixed(6)}, ${warehouse.Lng.toFixed(6)}`;
-      } else {
-        coordsDisplay.textContent = warehouseID ? 'Tọa độ: Không có dữ liệu' : 'Tọa độ: Chưa chọn';
-      }
-    });
+    originSelect.addEventListener('change', updateCoordsDisplay);
+    destSelect.addEventListener('change', updateCoordsDisplay);
   } catch (e) {
-    console.error('❌ Lỗi tải kho:', e);
+    console.error('❌ Failed to load warehouses:', e);
+    showToast('Failed to load warehouses', 'error');
   }
 }
 
+// Load Vehicles
 async function loadVehicles() {
   try {
-    verhicles = await fetch('/api/vehicles').then(r => r.json());
+    vehicles = await fetch('/api/vehicles').then(r => r.json());
     const select = document.getElementById('tripVehicleType');
-    select.innerHTML = '<option value="">Chọn xe xuất phát</option>';
-    verhicles.forEach(v => {
+    select.innerHTML = '<option value="">Select Vehicle</option>';
+    vehicles.forEach(v => {
       const opt = document.createElement('option');
       opt.value = v.UnitID;
       opt.textContent = v.LicensePlate;
       select.appendChild(opt);
     });
-
-    
   } catch (e) {
-    console.error('❌ Lỗi tải xe:', e);
+    console.error('❌ Failed to load vehicles:', e);
+    showToast('Failed to load vehicles', 'error');
   }
 }
 
-// Reset form tạo chuyến đi
-function resetTripForm() {
-  document.getElementById('createTripForm').reset();
-  document.getElementById('originCoords').textContent = 'Tọa độ: Chưa chọn';
-  document.getElementById('destCoords').textContent = 'Tọa độ: Chưa chọn';
+// Update Coordinates Display
+function updateCoordsDisplay(e) {
+  const select = e.target;
+  const warehouseID = select.value;
+  const isOrigin = select.id === 'tripOriginWarehouse';
+  const coordsDisplay = document.getElementById(isOrigin ? 'originCoords' : 'destCoords');
+  const warehouse = warehouses.find(w => w.WarehouseID.toString() === warehouseID);
+  if (warehouse && warehouse.Lat && warehouse.Lng) {
+    coordsDisplay.textContent = `Coordinates: ${warehouse.Lat.toFixed(6)}, ${warehouse.Lng.toFixed(6)}`;
+  } else {
+    coordsDisplay.textContent = warehouseID ? 'Coordinates: No data' : 'Coordinates: Not selected';
+  }
 }
 
-// Tạo chuyến đi mới
+// Reset Trip Form
+function resetTripForm() {
+  document.getElementById('createTripForm').reset();
+  document.getElementById('originCoords').textContent = 'Coordinates: Not selected';
+  document.getElementById('destCoords').textContent = 'Coordinates: Not selected';
+}
+
+// Create Trip
 async function createTrip(event) {
   event.preventDefault();
   if (!geoReady) {
-    alert('Vui lòng đợi tải xong biên giới Việt Nam!');
+    showToast('Please wait for Vietnam borders to load', 'error');
     return;
   }
 
@@ -205,70 +198,42 @@ async function createTrip(event) {
   const tripDate = document.getElementById('tripDate').value;
   const weight = Number(document.getElementById('tripWeight').value);
 
-  if (!originWarehouseID) {
-    alert('Vui lòng chọn kho xuất phát!');
-    return;
-  }
-  if (!destWarehouseID) {
-    alert('Vui lòng chọn kho đích!');
-    return;
-  }
-  if (!tripDate) {
-    alert('Vui lòng chọn ngày khởi hành!');
-    return;
-  }
-  if (!weight || weight <= 0) {
-    alert('Vui lòng nhập trọng lượng hợp lệ!');
-    return;
-  }
+  if (!originWarehouseID) return showToast('Please select origin warehouse', 'error');
+  if (!destWarehouseID) return showToast('Please select destination warehouse', 'error');
+  if (!vehicleID) return showToast('Please select vehicle', 'error');
+  if (!tripDate) return showToast('Please select trip date', 'error');
+  if (!weight || weight <= 0) return showToast('Please enter a valid weight', 'error');
 
-  // Lấy tọa độ từ kho
   const originWarehouse = warehouses.find(w => w.WarehouseID.toString() === originWarehouseID);
   const destWarehouse = warehouses.find(w => w.WarehouseID.toString() === destWarehouseID);
 
   if (!originWarehouse || !originWarehouse.Lat || !originWarehouse.Lng) {
-    alert('Kho xuất phát không hợp lệ hoặc thiếu tọa độ!');
-    return;
+    return showToast('Invalid origin warehouse or missing coordinates', 'error');
   }
   if (!destWarehouse || !destWarehouse.Lat || !destWarehouse.Lng) {
-    alert('Kho đích không hợp lệ hoặc thiếu tọa độ!');
-    return;
+    return showToast('Invalid destination warehouse or missing coordinates', 'error');
   }
 
   const origin = [originWarehouse.Lat, originWarehouse.Lng];
   const dest = [destWarehouse.Lat, destWarehouse.Lng];
 
-  // Kiểm tra tọa độ trong Việt Nam
   if (!isInVietnam(origin[0], origin[1]) || !isInVietnam(dest[0], dest[1])) {
-    alert('Kho xuất phát hoặc kho đích không nằm trong Việt Nam!');
-    return;
+    return showToast('Origin or destination warehouse is outside Vietnam', 'error');
   }
 
-  // Xác nhận trước khi tạo
-  // const confirmMsg = `Xác nhận tạo chuyến đi:\n- Từ: ${originWarehouse.WarehouseName} (${origin.join(',')})\n- Đến: ${destWarehouse.WarehouseName} (${dest.join(',')})\n- Loại xe: ${vehicleType}\n- Ngày: ${tripDate}\n- Trọng lượng: ${weight} kg`;
-  // if (!confirm(confirmMsg)) {
-  //   return;
-  // }
-
-  // Gọi ORS để kiểm tra tuyến đường
+  setLoading(true);
   const path = await fetchRouteORS(origin, dest);
   if (path.length < 2) {
-    alert('Không thể tạo tuyến đường hợp lệ!');
-    return;
+    setLoading(false);
+    return showToast('Unable to create a valid route', 'error');
   }
 
-  // Gửi dữ liệu chuyến đi đến backend
   const shipment = {
-    OriginLat: origin[0],
-    OriginLng: origin[1],
-    DestLat: dest[0],
-    DestLng: dest[1],
-    OriginWarehouseID: originWarehouseID,
-    DestWarehouseID: destWarehouseID,
-    VehicleID: vehicleID,
+    OriginWarehouseID: parseInt(originWarehouseID),
+    DestWarehouseID: parseInt(destWarehouseID),
+    VehicleID: parseInt(vehicleID),
     ShipmentDate: tripDate,
-    Weight: weight,
-    WarehouseID: destWarehouseID
+    Weight: weight
   };
 
   try {
@@ -277,33 +242,43 @@ async function createTrip(event) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(shipment)
     });
-    if (!resp.ok) {
-      throw new Error(await resp.text());
-    }
-    alert('Tạo chuyến đi thành công!');
+    if (!resp.ok) throw new Error(await resp.text());
+    showToast('Trip created successfully', 'success');
     resetTripForm();
-    //loadData();
   } catch (e) {
-    console.error('❌ Lỗi tạo chuyến đi:', e);
-    alert('Lỗi khi tạo chuyến đi: ' + e.message);
+    console.error('❌ Failed to create trip:', e);
+    showToast(`Failed to create trip: ${e.message}`, 'error');
+  } finally {
+    setLoading(false);
   }
 }
 
-// Tải dữ liệu shipment
+// Load and Visualize Shipments
 async function loadData() {
   if (!geoReady) {
-    alert('Vui lòng đợi tải xong biên giới Việt Nam!');
+    showToast('Please wait for Vietnam borders to load', 'error');
     return;
   }
 
-  const start = document.getElementById('start').value;
-  const end = document.getElementById('end').value;
+  const date = document.getElementById('date').value;
   const vehicleType = document.getElementById('vehicleType').value;
   const destWarehouse = document.getElementById('destWarehouse').value;
-  if (!start || !end) return alert('Vui lòng chọn ngày');
 
-  const query = new URLSearchParams({ start, end, vehicleType, destWarehouse }).toString();
-  const shipments = await fetch(`/api/shipments?${query}`).then(r => r.json());
+  if (!date) {
+    showToast('Please select date', 'error');
+    return;
+  }
+
+  setLoading(true);
+  const query = new URLSearchParams({ date, vehicleType, destWarehouse }).toString();
+  let shipments;
+  try {
+    shipments = await fetch(`/api/shipments?${query}`).then(r => r.json());
+  } catch (e) {
+    showToast('Failed to load shipments', 'error');
+    setLoading(false);
+    return;
+  }
 
   const byVeh = {};
   shipments.forEach(s => {
@@ -319,8 +294,10 @@ async function loadData() {
     });
   });
 
-  // Xóa layer cũ
-  map.eachLayer(l => { if (l instanceof L.Polyline || l instanceof L.Marker) map.removeLayer(l); });
+  // Clear Map Layers
+  map.eachLayer(l => {
+    if (l instanceof L.Polyline || l instanceof L.Marker) map.removeLayer(l);
+  });
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
   document.getElementById('info').innerHTML = '';
 
@@ -328,34 +305,32 @@ async function loadData() {
   Object.entries(byVeh).forEach(([code, v]) => {
     const box = document.createElement('div');
     box.className = 'vehicle-info';
-    box.innerHTML = `<b>Xe ${code}</b><br><span id="mv-${code}">Chưa chạy</span>`;
+    box.innerHTML = `<b>Vehicle ${code}</b><br><span id="mv-${code}">Not started</span>`;
     document.getElementById('info').append(box);
     v.div = document.getElementById(`mv-${code}`);
 
     const [lat0, lon0] = v.segments[0].origin;
-    v.marker = L.marker([lat0, lon0]).addTo(map).bindTooltip(`Xe ${code}`, { permanent: true, direction: 'right' });
-
-    v.segments.forEach(seg => {
-      allPts.push(seg.origin, seg.dest);
+    v.marker = L.marker([lat0, lon0]).addTo(map).bindTooltip(`Vehicle ${code}`, {
+      permanent: true,
+      direction: 'right'
     });
+
+    v.segments.forEach(seg => allPts.push(seg.origin, seg.dest));
   });
 
   if (allPts.length) {
     map.fitBounds(L.latLngBounds(allPts).pad(0.2));
   }
 
-  // Thống kê biểu đồ
-  //const daily = {};
+  // Animate Routes
   for (const [code, v] of Object.entries(byVeh)) {
     let acc = 0;
     for (const seg of v.segments) {
-      //const day = seg.date.substr(0, 10);
-      //daily[day] = (daily[day] || 0) + seg.weight;
       const path = await fetchRouteORS(seg.origin, seg.dest);
-      L.polyline(path, { color: 'blue', weight: seg.weight/1000 + 1 }).addTo(map);
+      L.polyline(path, { color: 'blue', weight: seg.weight / 1000 + 1 }).addTo(map);
       drawVietnamBorder();
       for (let i = 1; i < path.length; i++) {
-        const [lat1, lon1] = path[i-1], [lat2, lon2] = path[i];
+        const [lat1, lon1] = path[i - 1], [lat2, lon2] = path[i];
         const d = haversine(lat1, lon1, lat2, lon2);
         const speed = Math.random() * 30 + 30;
         const t = (d / speed * 3600 * 1000) / 1000;
@@ -363,23 +338,67 @@ async function loadData() {
         acc += t;
         setTimeout(() => {
           v.marker.setLatLng(path[i]);
-          v.div.innerText = `Speed: ${speed.toFixed(1)} km/h | Đoạn: ${d.toFixed(2)} km | Tổng: ${v.totalDist.toFixed(2)} km`;
+          v.div.innerText = `Speed: ${speed.toFixed(1)} km/h | Segment: ${d.toFixed(2)} km | Total: ${v.totalDist.toFixed(2)} km | Weight: ${seg.weight} kg`;
         }, acc);
       }
     }
   }
 
-  // const labels = Object.keys(daily).sort();
-  // const values = labels.map(d => daily[d]);
-  // new Chart(document.getElementById('chart'), {
-  //   type: 'bar',
-  //   data: { labels, datasets: [{ label: 'Tổng KG', data: values }] },
-  //   options: { responsive: true }
-  // });
+  // Update Chart
+  //updateChart(shipments);
+  setLoading(false);
 }
 
-// Tải dữ liệu khi mở trang
-document.addEventListener('DOMContentLoaded', () => {
-  loadWarehouses();
-  loadVehicles();
+// Update Chart
+function updateChart(shipments) {
+  const daily = {};
+  shipments.forEach(s => {
+    const day = s.ShipmentDate.substr(0, 10);
+    daily[day] = (daily[day] || 0) + s.Weight;
+  });
+
+  const labels = Object.keys(daily).sort();
+  const values = labels.map(d => daily[d]);
+
+  new Chart(document.getElementById('chart'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{ label: 'Total Weight (kg)', data: values, backgroundColor: 'rgba(40, 167, 69, 0.5)' }]
+    },
+    options: {
+      responsive: true,
+      scales: {
+        y: { beginAtZero: true, title: { display: true, text: 'Weight (kg)' } },
+        x: { title: { display: true, text: 'Date' } }
+      }
+    }
+  });
+}
+
+// Show Toast Notification
+function showToast(message, type = 'info') {
+  Toastify({
+    text: message,
+    duration: 3000,
+    gravity: 'top',
+    position: 'right',
+    backgroundColor: type === 'error' ? '#dc3545' : type === 'success' ? '#28a745' : '#007bff',
+    stopOnFocus: true
+  }).showToast();
+}
+
+// Set Loading State
+function setLoading(state) {
+  isLoading = state;
+  document.getElementById('loading').style.display = state ? 'flex' : 'none';
+}
+
+// Initialize
+document.addEventListener('DOMContentLoaded', async () => {
+  await loadVietnamGeoJSON();
+  await Promise.all([loadWarehouses(), loadVehicles()]);
+  document.getElementById('createTripForm').addEventListener('submit', createTrip);
+  document.getElementById('resetTripForm').addEventListener('click', resetTripForm);
+  document.getElementById('loadData').addEventListener('click', loadData);
 });

@@ -2,106 +2,76 @@
 <html lang="vi">
 <head>
   <meta charset="UTF-8">
-  <title>Playback Lộ trình Vận tải – Việt Nam (ORS)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Transportation Route Playback – Vietnam</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
-  <style>
-    body { font-family: Arial, sans-serif; margin: 0; padding: 10px; }
-    #controls { margin-bottom: 10px; display: flex; gap: 10px; align-items: center; }
-    #map { height: 400px; margin-bottom: 10px; }
-    .vehicle-info { border: 1px solid #ccc; padding: 5px; margin-bottom: 5px; background: #f9f9f9; }
-    #chart { width: 100%; max-width: 600px; height: 300px; }
-    #createTripForm { 
-      border: 1px solid #ccc; 
-      padding: 15px; 
-      margin-bottom: 10px; 
-      background: #f0f0f0; 
-      border-radius: 5px; 
-    }
-    #createTripForm h3 { margin-top: 0; }
-    #createTripForm label { display: block; margin: 10px 0; }
-    #createTripForm input, #createTripForm select { 
-      padding: 5px; 
-      border-radius: 3px; 
-      border: 1px solid #ccc; 
-      width: 200px; 
-    }
-    #createTripForm .coords { 
-      font-size: 0.9em; 
-      color: #555; 
-      margin-top: 5px; 
-      display: block; 
-    }
-    #createTripForm button { 
-      padding: 8px 15px; 
-      background: #28a745; 
-      color: white; 
-      border: none; 
-      border-radius: 3px; 
-      cursor: pointer; 
-    }
-    #createTripForm button:hover { background: #218838; }
-    #createTripForm button.reset { 
-      background: #dc3545; 
-      margin-left: 10px; 
-    }
-    #createTripForm button.reset:hover { background: #c82333; }
-  </style>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css"/>
+  <link rel="stylesheet" href="./styles.css"/>
 </head>
 <body>
-  <h1>Playback Lộ trình Vận tải – Việt Nam (ORS)</h1>
+  <h1>Transportation Route Playback – Vietnam</h1>
   <div id="controls">
-    <label>Từ: <input type="date" id="start"></label>
-    <label>Đến: <input type="date" id="end"></label>
-    <label>Loại xe:
-      <select id="vehicleType">
-        <option value="">Tất cả</option>
+    <label for="start">Date:
+      <input type="date" id="date" required aria-required="true">
+    </label>
+    <label for="vehicleType">Vehicle Type:
+      <select id="vehicleType" aria-label="Select vehicle type">
+        <option value="">All Types</option>
         <option value="Truck">Truck</option>
         <option value="Van">Van</option>
       </select>
     </label>
-    <label>Kho đích:
-      <select id="destWarehouse">
-        <option value="">Tất cả</option>
+    <label for="destWarehouse">Destination Warehouse:
+      <select id="destWarehouse" aria-label="Select destination warehouse">
+        <option value="">All Warehouses</option>
       </select>
     </label>
-    <button onclick="loadData()">Tải dữ liệu</button>
+    <button id="loadData">Load Data</button>
   </div>
 
-  <form id="createTripForm">
-    <h3>Khởi tạo chuyến đi mới</h3>
-    <label>Điểm xuất phát: 
-      <select id="tripOriginWarehouse">
-        <option value="">Chọn kho xuất phát</option>
+  <form id="createTripForm" aria-labelledby="formTitle">
+    <h3 id="formTitle">Create New Trip</h3>
+    <label for="tripOriginWarehouse">Origin Warehouse:
+      <select id="tripOriginWarehouse" required aria-required="true">
+        <option value="">Select Origin</option>
       </select>
-      <span id="originCoords" class="coords">Tọa độ: Chưa chọn</span>
+      <span id="originCoords" class="coords">Coordinates: Not selected</span>
     </label>
-    <label>Điểm đến: 
-      <select id="tripDestWarehouse">
-        <option value="">Chọn kho đích</option>
+    <label for="tripDestWarehouse">Destination Warehouse:
+      <select id="tripDestWarehouse" required aria-required="true">
+        <option value="">Select Destination</option>
       </select>
-      <span id="destCoords" class="coords">Tọa độ: Chưa chọn</span>
+      <span id="destCoords" class="coords">Coordinates: Not selected</span>
     </label>
-    <label>Loại xe:
-      <select id="tripVehicleType">
-        <option value="">Chọn xe</option>
+    <label for="tripVehicleType">Vehicle:
+      <select id="tripVehicleType" required aria-required="true">
+        <option value="">Select Vehicle</option>
       </select>
     </label>
-    <label>Ngày khởi hành: 
-      <input type="date" id="tripDate">
+    <label for="tripDate">Trip Date:
+      <input type="date" id="tripDate" required aria-required="true">
     </label>
-    <label>Trọng lượng (kg): 
-      <input type="number" id="tripWeight" min="0" step="1" placeholder="Nhập trọng lượng">
+    <label for="tripWeight">Weight (kg):
+      <input type="number" id="tripWeight" min="0" step="1" placeholder="Enter weight" required aria-required="true">
     </label>
-    <button onclick="createTrip(event)">Tạo chuyến đi</button>
-    <button class="reset" onclick="resetTripForm()">Xóa form</button>
+    <div class="form-buttons">
+      <button type="submit">Create Trip</button>
+      <button type="button" id="resetTripForm" class="reset">Reset Form</button>
+    </div>
   </form>
 
   <div id="info"></div>
   <div id="map"></div>
   <canvas id="chart"></canvas>
 
+  <div id="loading" class="loading">
+    <div class="spinner"></div>
+    <span>Loading...</span>
+  </div>
+
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
   <script src="./script.js"></script>
 </body>
 </html>

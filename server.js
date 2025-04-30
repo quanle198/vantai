@@ -3,74 +3,85 @@ const sql = require('mssql');
 const path = require('path');
 const bodyParser = require('body-parser');
 const cors = require('cors');
-const app = express();
-const PORT = 3000;
+const dotenv = require('dotenv');
+const fetch = require('node-fetch');
 
-// 1. Middleware
-app.use(cors());
+dotenv.config();
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+// Middleware
+app.use(cors({ origin: process.env.CORS_ORIGIN || '*' }));
 app.use(bodyParser.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// 2. Cấu hình kết nối SQL Server
+// SQL Server Configuration
 const config = {
-  user: 'sa',
-  password: 'quan',
-  server: 'quanfx',
-  port: 1433,
-  database: 'QL_VAN_TAI',
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  server: process.env.DB_SERVER,
+  port: parseInt(process.env.DB_PORT) || 1433,
+  database: process.env.DB_NAME,
+  pool: { max: 10, min: 0, idleTimeoutMillis: 30000 },
   options: {
-    encrypt: false,
-    trustServerCertificate: true
+    encrypt: process.env.NODE_ENV === 'production',
+    trustServerCertificate: process.env.NODE_ENV !== 'production'
   }
 };
 
-// 3. Endpoint test kết nối
-app.get('/test', async (req, res) => {
+// Initialize SQL Connection Pool
+let pool;
+async function initializePool() {
   try {
-    await sql.connect(config);
-    console.log("✅ Kết nối SQL thành công");
-    res.send("✅ Kết nối SQL thành công");
+    pool = await sql.connect(config);
+    console.log('✅ SQL Server connected');
   } catch (err) {
-    console.error("❌ Lỗi SQL /test:", err);
-    res.status(500).send("❌ Lỗi SQL (xem console)");
+    console.error('❌ SQL Server connection failed:', err);
+    process.exit(1);
+  }
+}
+initializePool();
+
+// Test Connection Endpoint
+app.get('/test', async (req, res, next) => {
+  try {
+    await pool.request().query('SELECT 1');
+    res.send('✅ SQL connection successful');
+  } catch (err) {
+    next(err);
   }
 });
 
-// 4. API lấy danh sách kho
-app.get('/api/warehouses', async (req, res) => {
+// Get Warehouses
+app.get('/api/warehouses', async (req, res, next) => {
   try {
-    const pool = await sql.connect(config);
     const result = await pool.request().query(`
       SELECT WarehouseID, WarehouseName, Longitude AS Lng, Latitude AS Lat
       FROM Warehouse
     `);
     res.json(result.recordset);
   } catch (err) {
-    console.error("❌ Lỗi SQL /api/warehouses:", err);
-    res.status(500).send("Lỗi khi tải danh sách kho");
+    next(err);
   }
 });
 
-app.get('/api/vehicles', async (req, res) => {
+// Get Vehicles
+app.get('/api/vehicles', async (req, res, next) => {
   try {
-    const pool = await sql.connect(config);
     const result = await pool.request().query(`
-      SELECT *
+      SELECT UnitID, UnitCode, Type, LicensePlate
       FROM TransportUnit
     `);
     res.json(result.recordset);
   } catch (err) {
-    console.error("❌ Lỗi SQL /api/verhicles:", err);
-    res.status(500).send("Lỗi khi tải danh sách xe");
+    next(err);
   }
 });
 
-// 5. API lấy shipment theo khoảng ngày, loại xe và kho đích
-app.get('/api/shipments', async (req, res) => {
-  const { start, end, vehicleType, destWarehouse } = req.query;
-
+// Get Shipments
+app.get('/api/shipments', async (req, res, next) => {
+  const { date, vehicleType, destWarehouse } = req.query;
   try {
-    const pool = await sql.connect(config);
     let query = `
       SELECT
         s.ShipmentDate, s.Weight,
@@ -81,104 +92,56 @@ app.get('/api/shipments', async (req, res) => {
       JOIN TransportUnit tu ON s.UnitID = tu.UnitID
       JOIN Warehouse o ON s.OriginWarehouseID = o.WarehouseID
       JOIN Warehouse d ON s.DestWarehouseID = d.WarehouseID
-      WHERE s.ShipmentDate BETWEEN @start AND DATEADD(day, 1, @end)
+      WHERE 
+        DAY(s.ShipmentDate) = DAY(@date) AND
+        MONTH(s.ShipmentDate) = MONTH(@date) AND
+        YEAR(s.ShipmentDate) = YEAR(@date)
     `;
     const request = pool.request();
+    request.input('date', sql.DateTime, date);
 
-    // Thêm tham số
-    request.input('start', sql.DateTime, start);
-    request.input('end', sql.DateTime, end);
-
-    // Lọc theo loại xe
     if (vehicleType) {
       query += ` AND tu.Type = @vehicleType`;
       request.input('vehicleType', sql.NVarChar, vehicleType);
     }
-
-    // Lọc theo kho đích
     if (destWarehouse) {
       query += ` AND s.DestWarehouseID = @destWarehouse`;
       request.input('destWarehouse', sql.Int, destWarehouse);
     }
-
     query += ` ORDER BY s.ShipmentDate`;
 
     const result = await request.query(query);
     res.json(result.recordset);
   } catch (err) {
-    console.error("❌ Lỗi SQL /api/shipments:", err);
-    res.status(500).send("Lỗi khi tải dữ liệu");
+    next(err);
   }
 });
 
-// 6. API tạo chuyến đi mới
-app.post('/api/shipments', async (req, res) => {
-  const { 
-    OriginWarehouseID, 
-    DestWarehouseID, 
-    VehicleID, 
-    ShipmentDate, 
-    Weight 
-  } = req.body;
-
-  // Kiểm tra dữ liệu đầu vào
+// Create Shipment
+app.post('/api/shipments', async (req, res, next) => {
+  const { OriginWarehouseID, DestWarehouseID, VehicleID, ShipmentDate, Weight } = req.body;
   if (!OriginWarehouseID || !DestWarehouseID || !VehicleID || !ShipmentDate || !Weight) {
-    return res.status(400).json({ error: 'Thiếu thông tin bắt buộc' });
+    return res.status(400).json({ error: 'Missing required fields' });
   }
 
   try {
-    const pool = await sql.connect(config);
-
-    // Kiểm tra kho xuất phát tồn tại
+    // Validate Origin Warehouse
     const originWarehouse = await pool.request()
       .input('warehouseID', sql.Int, OriginWarehouseID)
-      .query(`
-        SELECT WarehouseID, Latitude, Longitude
-        FROM Warehouse
-        WHERE WarehouseID = @warehouseID
-      `);
+      .query(`SELECT WarehouseID, Latitude, Longitude FROM Warehouse WHERE WarehouseID = @warehouseID`);
     if (!originWarehouse.recordset.length) {
-      return res.status(400).json({ error: 'Kho xuất phát không tồn tại' });
+      return res.status(400).json({ error: 'Origin warehouse not found' });
     }
 
-    // Kiểm tra kho đích tồn tại
+    // Validate Destination Warehouse
     const destWarehouse = await pool.request()
       .input('warehouseID', sql.Int, DestWarehouseID)
-      .query(`
-        SELECT WarehouseID, Latitude, Longitude
-        FROM Warehouse
-        WHERE WarehouseID = @warehouseID
-      `);
+      .query(`SELECT WarehouseID, Latitude, Longitude FROM Warehouse WHERE WarehouseID = @warehouseID`);
     if (!destWarehouse.recordset.length) {
-      return res.status(400).json({ error: 'Kho đích không tồn tại' });
+      return res.status(400).json({ error: 'Destination warehouse not found' });
     }
 
-    // Kiểm tra UnitCode tồn tại hoặc thêm mới TransportUnit
-    // let unitResult = await pool.request()
-    //   .input('unitCode', sql.NVarChar, UnitCode)
-    //   .query(`
-    //     SELECT UnitID
-    //     FROM TransportUnit
-    //     WHERE UnitCode = @unitCode
-    //   `);
-    
-    // let unitID;
-    // if (unitResult.recordset.length) {
-    //   unitID = unitResult.recordset[0].UnitID;
-    // } else {
-    //   // Thêm mới TransportUnit nếu không tồn tại
-    //   const insertUnit = await pool.request()
-    //     .input('unitCode', sql.NVarChar, UnitCode)
-    //     .input('type', sql.NVarChar, VehicleType)
-    //     .query(`
-    //       INSERT INTO TransportUnit (UnitCode, Type)
-    //       OUTPUT INSERTED.UnitID
-    //       VALUES (@unitCode, @type)
-    //     `);
-    //   unitID = insertUnit.recordset[0].UnitID;
-    // }
-
-    // Thêm chuyến đi vào bảng Shipment
+    // Insert Shipment
     await pool.request()
       .input('shipmentDate', sql.DateTime, new Date(ShipmentDate))
       .input('weight', sql.Float, Weight)
@@ -190,19 +153,45 @@ app.post('/api/shipments', async (req, res) => {
         VALUES (@shipmentDate, @weight, @unitID, @originWarehouseID, @destWarehouseID)
       `);
 
-    res.status(201).json({ message: 'Tạo chuyến đi thành công' });
+    res.status(201).json({ message: 'Shipment created successfully' });
   } catch (err) {
-    console.error("❌ Lỗi SQL /api/shipments POST:", err);
-    res.status(500).json({ error: 'Lỗi khi tạo chuyến đi: ' + err.message });
+    next(err);
   }
 });
 
-// 7. Phục vụ file test-map.html
+// Proxy ORS Route Request
+app.post('/api/ors/route', async (req, res, next) => {
+  try {
+    const response = await fetch('https://api.openrouteservice.org/v2/directions/driving-car/geojson', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': process.env.ORS_API_KEY
+      },
+      body: JSON.stringify(req.body)
+    });
+    if (!response.ok) {
+      throw new Error(await response.text());
+    }
+    const data = await response.json();
+    res.json(data);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Serve test-map.html
 app.get('/test-map.html', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'test-map.html'));
 });
 
-// 8. Chạy server
-app.listen(PORT, () =>
-  console.log(`🚀 Server đang chạy: http://localhost:${PORT}`)
-);
+// Error Handling Middleware
+app.use((err, req, res, next) => {
+  console.error(`❌ Error in ${req.method} ${req.url}:`, err);
+  res.status(500).json({ error: 'Internal server error', details: err.message });
+});
+
+// Start Server
+app.listen(PORT, () => {
+  console.log(`🚀 Server running at http://localhost:${PORT}`);
+});
