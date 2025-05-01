@@ -268,6 +268,58 @@ async function updateShipmentStatus(shipmentId, status, totalDistance) {
   }
 }
 
+// Fetch Shipment History
+async function fetchShipmentHistory(shipmentId) {
+  try {
+    const resp = await fetch(`/api/shipments/${shipmentId}/history`);
+    if (!resp.ok) throw new Error(await resp.text());
+    return await resp.json();
+  } catch (e) {
+    console.error(`❌ Failed to fetch history for shipment ${shipmentId}:`, e);
+    showToast(`Failed to fetch shipment history: ${e.message}`, 'error');
+    return [];
+  }
+}
+
+// Show Shipment History Modal
+async function showShipmentHistory(shipmentId, vehicleCode) {
+  const history = await fetchShipmentHistory(shipmentId);
+  const modal = document.createElement('div');
+  modal.className = 'modal';
+  modal.innerHTML = `
+    <div class="modal-content">
+      <span class="modal-close">&times;</span>
+      <h3>Shipment History for Vehicle ${vehicleCode}</h3>
+      <table class="history-table">
+        <thead>
+          <tr>
+            <th>Status</th>
+            <th>Total Distance (km)</th>
+            <th>Change Time</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${history.length ? history.map(h => `
+            <tr>
+              <td>${h.Status}</td>
+              <td>${h.TotalDistance.toFixed(2)}</td>
+              <td>${new Date(h.ChangeTime).toLocaleString('vi-VN', { timeZone: 'UTC' })}</td>
+            </tr>
+          `).join('') : '<tr><td colspan="3">No history available</td></tr>'}
+        </tbody>
+      </table>
+    </div>
+  `;
+  document.body.appendChild(modal);
+
+  modal.querySelector('.modal-close').addEventListener('click', () => {
+    modal.remove();
+  });
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) modal.remove();
+  });
+}
+
 // Update Status Table
 function updateStatusTable(byVeh) {
   const table = document.getElementById('statusTable');
@@ -284,6 +336,7 @@ function updateStatusTable(byVeh) {
             <th>Current Segment</th>
             <th>Total Distance (km)</th>
             <th>Current Weight (kg)</th>
+            <th>History</th>
           </tr>
         </thead>
         <tbody id="statusTableBody"></tbody>
@@ -296,6 +349,7 @@ function updateStatusTable(byVeh) {
   tbody.innerHTML = '';
 
   Object.entries(byVeh).forEach(([code, v]) => {
+    const shipmentId = v.segments[v.currentSegment || 0]?.shipmentId || '';
     const row = document.createElement('tr');
     row.innerHTML = `
       <td>${code}</td>
@@ -303,8 +357,17 @@ function updateStatusTable(byVeh) {
       <td id="segment-${code}">${v.currentSegment !== null ? v.currentSegment + 1 : '-'}</td>
       <td id="distance-${code}">${v.totalDist.toFixed(2)}</td>
       <td id="weight-${code}">${v.currentWeight || 0}</td>
+      <td><button class="history-btn" data-shipment-id="${shipmentId}" data-vehicle-code="${code}" ${!shipmentId ? 'disabled' : ''}>View History</button></td>
     `;
     tbody.appendChild(row);
+  });
+
+  document.querySelectorAll('.history-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const shipmentId = btn.getAttribute('data-shipment-id');
+      const vehicleCode = btn.getAttribute('data-vehicle-code');
+      if (shipmentId) showShipmentHistory(shipmentId, vehicleCode);
+    });
   });
 }
 

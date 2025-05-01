@@ -142,7 +142,7 @@ app.post('/api/shipments', async (req, res, next) => {
     }
 
     // Insert Shipment
-    await pool.request()
+    const shipmentResult = await pool.request()
       .input('shipmentDate', sql.DateTime, new Date(ShipmentDate))
       .input('weight', sql.Float, Weight)
       .input('unitID', sql.Int, VehicleID)
@@ -152,10 +152,23 @@ app.post('/api/shipments', async (req, res, next) => {
       .input('totalDistance', sql.Float, 0)
       .query(`
         INSERT INTO Shipment (ShipmentDate, Weight, UnitID, OriginWarehouseID, DestWarehouseID, Status, TotalDistance)
+        OUTPUT INSERTED.ShipmentID
         VALUES (@shipmentDate, @weight, @unitID, @originWarehouseID, @destWarehouseID, @status, @totalDistance)
       `);
 
-    res.status(201).json({ message: 'Shipment created successfully' });
+    const shipmentId = shipmentResult.recordset[0].ShipmentID;
+
+    // Insert Initial History
+    await pool.request()
+      .input('shipmentId', sql.Int, shipmentId)
+      .input('status', sql.NVarChar, 'Pending')
+      .input('totalDistance', sql.Float, 0)
+      .query(`
+        INSERT INTO ShipmentHistory (ShipmentID, Status, TotalDistance)
+        VALUES (@shipmentId, @status, @totalDistance)
+      `);
+
+    res.status(201).json({ message: 'Shipment created successfully', shipmentId });
   } catch (err) {
     next(err);
   }
@@ -191,7 +204,36 @@ app.patch('/api/shipments/:id/status', async (req, res, next) => {
     if (result.rowsAffected[0] === 0) {
       return res.status(404).json({ error: 'Shipment not found' });
     }
+
+    // Insert History
+    await pool.request()
+      .input('shipmentId', sql.Int, id)
+      .input('status', sql.NVarChar, status)
+      .input('totalDistance', sql.Float, totalDistance || 0)
+      .query(`
+        INSERT INTO ShipmentHistory (ShipmentID, Status, TotalDistance)
+        VALUES (@shipmentId, @status, @totalDistance)
+      `);
+
     res.json({ message: 'Shipment updated successfully' });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Get Shipment History
+app.get('/api/shipments/:id/history', async (req, res, next) => {
+  const { id } = req.params;
+  try {
+    const result = await pool.request()
+      .input('shipmentId', sql.Int, id)
+      .query(`
+        SELECT HistoryID, Status, TotalDistance, ChangeTime
+        FROM ShipmentHistory
+        WHERE ShipmentID = @shipmentId
+        ORDER BY ChangeTime ASC
+      `);
+    res.json(result.recordset);
   } catch (err) {
     next(err);
   }
