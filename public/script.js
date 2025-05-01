@@ -252,19 +252,19 @@ async function createTrip(event) {
   }
 }
 
-// Update Shipment Status
-async function updateShipmentStatus(shipmentId, status) {
+// Update Shipment Status and TotalDistance
+async function updateShipmentStatus(shipmentId, status, totalDistance) {
   try {
     const resp = await fetch(`/api/shipments/${shipmentId}/status`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status })
+      body: JSON.stringify({ status, totalDistance })
     });
     if (!resp.ok) throw new Error(await resp.text());
-    console.log(`✅ Shipment ${shipmentId} status updated to ${status}`);
+    console.log(`✅ Shipment ${shipmentId} updated: Status=${status}, TotalDistance=${totalDistance}`);
   } catch (e) {
-    console.error(`❌ Failed to update shipment ${shipmentId} status:`, e);
-    showToast(`Failed to update shipment status: ${e.message}`, 'error');
+    console.error(`❌ Failed to update shipment ${shipmentId}:`, e);
+    showToast(`Failed to update shipment: ${e.message}`, 'error');
   }
 }
 
@@ -347,7 +347,7 @@ async function loadData() {
       byVeh[code] = {
         plate: s.UnitCode,
         segments: [],
-        totalDist: 0,
+        totalDist: s.TotalDistance || 0,
         div: null,
         marker: null,
         status: 'Idle',
@@ -356,12 +356,13 @@ async function loadData() {
       };
     }
     byVeh[code].segments.push({
-      shipmentId: s.ShipmentID, // Giả sử ShipmentID được trả về từ API
+      shipmentId: s.ShipmentID,
       origin: [s.OriginLat, s.OriginLng],
       dest: [s.DestLat, s.DestLng],
       weight: s.Weight,
       date: s.ShipmentDate,
-      status: s.Status
+      status: s.Status,
+      totalDistance: s.TotalDistance || 0
     });
   });
 
@@ -409,6 +410,7 @@ async function loadData() {
         v.currentWeight = seg.weight;
         v.status = 'Completed';
         v.currentSegment = segIdx;
+        v.totalDist = seg.totalDistance;
         updateStatusTable(byVeh);
         continue;
       }
@@ -416,7 +418,7 @@ async function loadData() {
       v.currentWeight = seg.weight;
       v.status = 'Moving';
       if (seg.status === 'Pending') {
-        await updateShipmentStatus(seg.shipmentId, 'Moving');
+        await updateShipmentStatus(seg.shipmentId, 'Moving', v.totalDist);
         seg.status = 'Moving';
       }
       updateStatusTable(byVeh);
@@ -424,9 +426,11 @@ async function loadData() {
       const path = await fetchRouteORS(seg.origin, seg.dest);
       L.polyline(path, { color: 'blue', weight: seg.weight / 1000 + 1 }).addTo(map);
       drawVietnamBorder();
+      let segmentDistance = 0;
       for (let i = 1; i < path.length; i++) {
         const [lat1, lon1] = path[i - 1], [lat2, lon2] = path[i];
         const d = haversine(lat1, lon1, lat2, lon2);
+        segmentDistance += d;
         const speed = Math.random() * 30 + 30;
         const t = (d / speed * 3600 * 1000) / 1000;
         v.totalDist += d;
@@ -437,12 +441,13 @@ async function loadData() {
           updateStatusTable(byVeh);
         }, acc);
       }
+      seg.totalDistance = segmentDistance;
       if (segIdx === v.segments.length - 1) {
         setTimeout(async () => {
           v.status = 'Completed';
           v.currentSegment = null;
           v.currentWeight = 0;
-          await updateShipmentStatus(seg.shipmentId, 'Completed');
+          await updateShipmentStatus(seg.shipmentId, 'Completed', v.totalDist);
           updateStatusTable(byVeh);
         }, acc);
       } else {

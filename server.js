@@ -84,7 +84,7 @@ app.get('/api/shipments', async (req, res, next) => {
   try {
     let query = `
       SELECT
-        s.ShipmentID, s.ShipmentDate, s.Weight, s.Status,
+        s.ShipmentID, s.ShipmentDate, s.Weight, s.Status, s.TotalDistance,
         tu.UnitCode, tu.Type, tu.LicensePlate,
         o.Longitude AS OriginLng, o.Latitude AS OriginLat,
         d.Longitude AS DestLng, d.Latitude AS DestLat
@@ -149,9 +149,10 @@ app.post('/api/shipments', async (req, res, next) => {
       .input('originWarehouseID', sql.Int, OriginWarehouseID)
       .input('destWarehouseID', sql.Int, DestWarehouseID)
       .input('status', sql.NVarChar, 'Pending')
+      .input('totalDistance', sql.Float, 0)
       .query(`
-        INSERT INTO Shipment (ShipmentDate, Weight, UnitID, OriginWarehouseID, DestWarehouseID, Status)
-        VALUES (@shipmentDate, @weight, @unitID, @originWarehouseID, @destWarehouseID, @status)
+        INSERT INTO Shipment (ShipmentDate, Weight, UnitID, OriginWarehouseID, DestWarehouseID, Status, TotalDistance)
+        VALUES (@shipmentDate, @weight, @unitID, @originWarehouseID, @destWarehouseID, @status, @totalDistance)
       `);
 
     res.status(201).json({ message: 'Shipment created successfully' });
@@ -160,27 +161,37 @@ app.post('/api/shipments', async (req, res, next) => {
   }
 });
 
-// Update Shipment Status
+// Update Shipment Status and TotalDistance
 app.patch('/api/shipments/:id/status', async (req, res, next) => {
   const { id } = req.params;
-  const { status } = req.body;
+  const { status, totalDistance } = req.body;
   if (!['Pending', 'Moving', 'Completed'].includes(status)) {
     return res.status(400).json({ error: 'Invalid status' });
   }
+  if (totalDistance !== undefined && (typeof totalDistance !== 'number' || totalDistance < 0)) {
+    return res.status(400).json({ error: 'Invalid total distance' });
+  }
 
   try {
-    const result = await pool.request()
+    const request = pool.request()
       .input('id', sql.Int, id)
-      .input('status', sql.NVarChar, status)
-      .query(`
-        UPDATE Shipment
-        SET Status = @status
-        WHERE ShipmentID = @id
-      `);
+      .input('status', sql.NVarChar, status);
+    
+    let query = `
+      UPDATE Shipment
+      SET Status = @status
+    `;
+    if (totalDistance !== undefined) {
+      query += `, TotalDistance = @totalDistance`;
+      request.input('totalDistance', sql.Float, totalDistance);
+    }
+    query += ` WHERE ShipmentID = @id`;
+
+    const result = await request.query(query);
     if (result.rowsAffected[0] === 0) {
       return res.status(404).json({ error: 'Shipment not found' });
     }
-    res.json({ message: 'Shipment status updated successfully' });
+    res.json({ message: 'Shipment updated successfully' });
   } catch (err) {
     next(err);
   }
