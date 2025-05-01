@@ -316,3 +316,8 @@ h1 {
       width: 95%;
   }
 }
+
+#controls button:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}

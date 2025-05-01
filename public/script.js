@@ -7,6 +7,7 @@ let vehicles = [];
 let vietnamPolygons = [];
 let geoReady = false;
 let isLoading = false;
+let isSimulating = false; // Biến để theo dõi trạng thái giả lập
 
 // Haversine Formula
 function haversine(lat1, lon1, lat2, lon2) {
@@ -352,12 +353,12 @@ function updateStatusTable(byVeh) {
     const shipmentId = v.segments[v.currentSegment || 0]?.shipmentId || '';
     const row = document.createElement('tr');
     row.innerHTML = `
-      <td>${code}</td>
-      <td id="status-${code}">${v.status || 'Idle'}</td>
-      <td id="segment-${code}">${v.currentSegment !== null ? v.currentSegment + 1 : '-'}</td>
-      <td id="distance-${code}">${v.totalDist.toFixed(2)}</td>
-      <td id="weight-${code}">${v.currentWeight || 0}</td>
-      <td><button class="history-btn" data-shipment-id="${shipmentId}" data-vehicle-code="${code}" ${!shipmentId ? 'disabled' : ''}>View History</button></td>
+      <td>${v.plate}</td>
+      <td id="status-${v.plate}">${v.status || 'Idle'}</td>
+      <td id="segment-${v.plate}">${v.currentSegment !== null ? v.currentSegment + 1 : '-'}</td>
+      <td id="distance-${v.plate}">${v.totalDist.toFixed(2)}</td>
+      <td id="weight-${v.plate}">${v.currentWeight || 0}</td>
+      <td><button class="history-btn" data-shipment-id="${shipmentId}" data-vehicle-code="${v.plate}" ${!shipmentId ? 'disabled' : ''}>View History</button></td>
     `;
     tbody.appendChild(row);
   });
@@ -377,6 +378,10 @@ async function loadData() {
     showToast('Please wait for Vietnam borders to load', 'error');
     return;
   }
+  if (isSimulating) {
+    showToast('Simulation is still running. Please wait until completion.', 'info');
+    return;
+  }
 
   const date = document.getElementById('date').value;
   const vehicleType = document.getElementById('vehicleType').value;
@@ -387,6 +392,13 @@ async function loadData() {
     return;
   }
 
+  // Khóa nút Load Data
+  const loadDataBtn = document.getElementById('loadData');
+  loadDataBtn.disabled = true;
+  loadDataBtn.style.background = '#ccc';
+  loadDataBtn.style.cursor = 'not-allowed';
+  isSimulating = true;
+
   setLoading(true);
   const query = new URLSearchParams({ date, vehicleType, destWarehouse }).toString();
   let shipments;
@@ -395,20 +407,22 @@ async function loadData() {
     if (shipments.length === 0) {
       showToast('No shipments found for the selected criteria', 'info');
       setLoading(false);
+      resetLoadDataButton();
       return;
     }
   } catch (e) {
     showToast('Failed to load shipments', 'error');
     setLoading(false);
+    resetLoadDataButton();
     return;
   }
 
   const byVeh = {};
   shipments.forEach(s => {
     const code = s.LicensePlate;
-    if (!byVeh[code]) {
-      byVeh[code] = {
-        plate: s.UnitCode,
+    if (!byVeh[s.ShipmentID]) {
+      byVeh[s.ShipmentID] = {
+        plate: s.LicensePlate,
         segments: [],
         totalDist: s.TotalDistance || 0,
         div: null,
@@ -418,7 +432,7 @@ async function loadData() {
         currentWeight: 0
       };
     }
-    byVeh[code].segments.push({
+    byVeh[s.ShipmentID].segments.push({
       shipmentId: s.ShipmentID,
       origin: [s.OriginLat, s.OriginLng],
       dest: [s.DestLat, s.DestLng],
@@ -440,12 +454,12 @@ async function loadData() {
   Object.entries(byVeh).forEach(([code, v]) => {
     const box = document.createElement('div');
     box.className = 'vehicle-info';
-    box.innerHTML = `<b>Vehicle ${code}</b><br><span id="mv-${code}">Not started</span>`;
+    box.innerHTML = `<b>Vehicle ${v.plate}</b><br><span id="mv-${code}">Not started</span>`;
     document.getElementById('info').append(box);
     v.div = document.getElementById(`mv-${code}`);
 
     const [lat0, lon0] = v.segments[0].origin;
-    v.marker = L.marker([lat0, lon0]).addTo(map).bindTooltip(`Vehicle ${code}`, {
+    v.marker = L.marker([lat0, lon0]).addTo(map).bindTooltip(`Vehicle ${v.plate}`, {
       permanent: true,
       direction: 'right'
     });
@@ -459,6 +473,9 @@ async function loadData() {
 
   // Initialize Status Table
   updateStatusTable(byVeh);
+
+  // Theo dõi số lượng chuyến đi chưa hoàn tất
+  let pendingShipments = Object.keys(byVeh).length;
 
   // Animate Routes for Pending/Moving Shipments
   for (const [code, v] of Object.entries(byVeh)) {
@@ -475,6 +492,13 @@ async function loadData() {
         v.currentSegment = segIdx;
         v.totalDist = seg.totalDistance;
         updateStatusTable(byVeh);
+        // Giảm số lượng chuyến đi chưa hoàn tất
+        pendingShipments--;
+        if (pendingShipments === 0) {
+          // Tất cả các chuyến đi đã hoàn tất, mở khóa nút
+          resetLoadDataButton();
+          showToast('All shipments completed', 'success');
+        }
         continue;
       }
 
@@ -484,7 +508,6 @@ async function loadData() {
         await updateShipmentStatus(seg.shipmentId, 'Moving', v.totalDist);
         seg.status = 'Moving';
       }
-      updateStatusTable(byVeh);
 
       const path = await fetchRouteORS(seg.origin, seg.dest);
       L.polyline(path, { color: 'blue', weight: seg.weight / 1000 + 1 }).addTo(map);
@@ -495,16 +518,18 @@ async function loadData() {
         const d = haversine(lat1, lon1, lat2, lon2);
         segmentDistance += d;
         const speed = Math.random() * 30 + 30;
-        const t = (d / speed * 3600 * 1000) / 1000;
+        const t = (d / speed * 3600 * 1000) / 100;
         v.totalDist += d;
         acc += t;
+
         setTimeout(() => {
           v.marker.setLatLng(path[i]);
           v.div.innerText = `Speed: ${speed.toFixed(1)} km/h | Segment: ${d.toFixed(2)} km | Total: ${v.totalDist.toFixed(2)} km | Weight: ${seg.weight} kg`;
-          updateStatusTable(byVeh);
         }, acc);
       }
       seg.totalDistance = segmentDistance;
+      updateStatusTable(byVeh);
+
       if (segIdx === v.segments.length - 1) {
         setTimeout(async () => {
           v.status = 'Completed';
@@ -512,6 +537,14 @@ async function loadData() {
           v.currentWeight = 0;
           await updateShipmentStatus(seg.shipmentId, 'Completed', v.totalDist);
           updateStatusTable(byVeh);
+
+          // Giảm số lượng chuyến đi chưa hoàn tất
+          pendingShipments--;
+          if (pendingShipments === 0) {
+            // Tất cả các chuyến đi đã hoàn tất, mở khóa nút
+            resetLoadDataButton();
+            showToast('All shipments completed', 'success');
+          }
         }, acc);
       } else {
         v.currentSegment = segIdx + 1;
@@ -520,6 +553,15 @@ async function loadData() {
   }
 
   setLoading(false);
+}
+
+// Hàm để reset trạng thái nút Load Data
+function resetLoadDataButton() {
+  const loadDataBtn = document.getElementById('loadData');
+  loadDataBtn.disabled = false;
+  loadDataBtn.style.background = '#007bff';
+  loadDataBtn.style.cursor = 'pointer';
+  isSimulating = false;
 }
 
 // Update Chart
@@ -574,4 +616,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('createTripForm').addEventListener('submit', createTrip);
   document.getElementById('resetTripForm').addEventListener('click', resetTripForm);
   document.getElementById('loadData').addEventListener('click', loadData);
+  document.getElementById('refreshPage').addEventListener('click', () => {
+    location.reload();
+  });
 });
