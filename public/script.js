@@ -111,8 +111,7 @@ async function fetchRouteORS(orig, dest) {
       return path.length >= 2 ? path : [orig, dest];
     } catch (e) {
       console.error('❌ ORS lỗi, thử lại:', e);
-      // Có thể thêm delay giữa các lần retry nếu cần
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Chờ 1 giây trước khi retry
+      await new Promise(resolve => setTimeout(resolve, 1000));
     }
   }
 }
@@ -253,6 +252,44 @@ async function createTrip(event) {
   }
 }
 
+// Update Status Table
+function updateStatusTable(byVeh) {
+  const table = document.getElementById('statusTable');
+  if (!table) {
+    const tableContainer = document.createElement('div');
+    tableContainer.id = 'statusTableContainer';
+    tableContainer.innerHTML = `
+      <h3>Vehicle Status</h3>
+      <table id="statusTable">
+        <thead>
+          <tr>
+            <th>Vehicle</th>
+            <th>Status</th>
+            <th>Total Distance (km)</th>
+            <th>Current Weight (kg)</th>
+          </tr>
+        </thead>
+        <tbody id="statusTableBody"></tbody>
+      </table>
+    `;
+    document.getElementById('info').prepend(tableContainer);
+  }
+
+  const tbody = document.getElementById('statusTableBody');
+  tbody.innerHTML = '';
+
+  Object.entries(byVeh).forEach(([code, v]) => {
+    const row = document.createElement('tr');
+    row.innerHTML = `
+      <td>${code}</td>
+      <td id="status-${code}">${v.status || 'Idle'}</td>
+      <td id="distance-${code}">${v.totalDist.toFixed(2)}</td>
+      <td id="weight-${code}">${v.currentWeight || 0}</td>
+    `;
+    tbody.appendChild(row);
+  });
+}
+
 // Load and Visualize Shipments
 async function loadData() {
   if (!geoReady) {
@@ -289,7 +326,16 @@ async function loadData() {
   shipments.forEach(s => {
     const code = s.LicensePlate;
     if (!byVeh[code]) {
-      byVeh[code] = { plate: s.UnitCode, segments: [], totalDist: 0, div: null, marker: null };
+      byVeh[code] = {
+        plate: s.UnitCode,
+        segments: [],
+        totalDist: 0,
+        div: null,
+        marker: null,
+        status: 'Idle',
+        currentSegment: null,
+        currentWeight: 0
+      };
     }
     byVeh[code].segments.push({
       origin: [s.OriginLat, s.OriginLng],
@@ -327,10 +373,18 @@ async function loadData() {
     map.fitBounds(L.latLngBounds(allPts).pad(0.2));
   }
 
+  // Initialize Status Table
+  updateStatusTable(byVeh);
+
   // Animate Routes
   for (const [code, v] of Object.entries(byVeh)) {
     let acc = 0;
-    for (const seg of v.segments) {
+    v.currentSegment = 0;
+    for (let segIdx = 0; segIdx < v.segments.length; segIdx++) {
+      const seg = v.segments[segIdx];
+      v.currentWeight = seg.weight;
+      v.status = 'Moving';
+      updateStatusTable(byVeh);
       const path = await fetchRouteORS(seg.origin, seg.dest);
       L.polyline(path, { color: 'blue', weight: seg.weight / 1000 + 1 }).addTo(map);
       drawVietnamBorder();
@@ -344,13 +398,22 @@ async function loadData() {
         setTimeout(() => {
           v.marker.setLatLng(path[i]);
           v.div.innerText = `Speed: ${speed.toFixed(1)} km/h | Segment: ${d.toFixed(2)} km | Total: ${v.totalDist.toFixed(2)} km | Weight: ${seg.weight} kg`;
+          updateStatusTable(byVeh);
         }, acc);
+      }
+      if (segIdx === v.segments.length - 1) {
+        setTimeout(() => {
+          v.status = 'Completed';
+          v.currentSegment = null;
+          v.currentWeight = 0;
+          updateStatusTable(byVeh);
+        }, acc);
+      } else {
+        v.currentSegment = segIdx + 1;
       }
     }
   }
 
-  // Update Chart
-  //updateChart(shipments);
   setLoading(false);
 }
 
