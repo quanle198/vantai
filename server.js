@@ -84,7 +84,7 @@ app.get('/api/shipments', async (req, res, next) => {
   try {
     let query = `
       SELECT
-        s.ShipmentDate, s.Weight,
+        s.ShipmentID, s.ShipmentDate, s.Weight, s.Status,
         tu.UnitCode, tu.Type, tu.LicensePlate,
         o.Longitude AS OriginLng, o.Latitude AS OriginLat,
         d.Longitude AS DestLng, d.Latitude AS DestLat
@@ -148,12 +148,39 @@ app.post('/api/shipments', async (req, res, next) => {
       .input('unitID', sql.Int, VehicleID)
       .input('originWarehouseID', sql.Int, OriginWarehouseID)
       .input('destWarehouseID', sql.Int, DestWarehouseID)
+      .input('status', sql.NVarChar, 'Pending')
       .query(`
-        INSERT INTO Shipment (ShipmentDate, Weight, UnitID, OriginWarehouseID, DestWarehouseID)
-        VALUES (@shipmentDate, @weight, @unitID, @originWarehouseID, @destWarehouseID)
+        INSERT INTO Shipment (ShipmentDate, Weight, UnitID, OriginWarehouseID, DestWarehouseID, Status)
+        VALUES (@shipmentDate, @weight, @unitID, @originWarehouseID, @destWarehouseID, @status)
       `);
 
     res.status(201).json({ message: 'Shipment created successfully' });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Update Shipment Status
+app.patch('/api/shipments/:id/status', async (req, res, next) => {
+  const { id } = req.params;
+  const { status } = req.body;
+  if (!['Pending', 'Moving', 'Completed'].includes(status)) {
+    return res.status(400).json({ error: 'Invalid status' });
+  }
+
+  try {
+    const result = await pool.request()
+      .input('id', sql.Int, id)
+      .input('status', sql.NVarChar, status)
+      .query(`
+        UPDATE Shipment
+        SET Status = @status
+        WHERE ShipmentID = @id
+      `);
+    if (result.rowsAffected[0] === 0) {
+      return res.status(404).json({ error: 'Shipment not found' });
+    }
+    res.json({ message: 'Shipment status updated successfully' });
   } catch (err) {
     next(err);
   }
