@@ -78,6 +78,51 @@ app.get('/api/vehicles', async (req, res, next) => {
   }
 });
 
+// Create Vehicle
+app.post('/api/vehicles', async (req, res, next) => {
+  const { UnitCode, Type, Capacity, LicensePlate } = req.body;
+  if (!UnitCode || !Type || !Capacity || !LicensePlate) {
+    return res.status(400).json({ error: 'Missing required fields' });
+  }
+  if (!['Truck', 'Van'].includes(Type)) {
+    return res.status(400).json({ error: 'Invalid vehicle type' });
+  }
+  if (typeof Capacity !== 'number' || Capacity <= 0) {
+    return res.status(400).json({ error: 'Invalid capacity' });
+  }
+
+  try {
+    // Check if UnitCode or LicensePlate already exists
+    const checkResult = await pool.request()
+      .input('unitCode', sql.NVarChar, UnitCode)
+      .input('licensePlate', sql.NVarChar, LicensePlate)
+      .query(`
+        SELECT UnitID
+        FROM TransportUnit
+        WHERE UnitCode = @unitCode OR LicensePlate = @licensePlate
+      `);
+    if (checkResult.recordset.length > 0) {
+      return res.status(400).json({ error: 'Unit code or license plate already exists' });
+    }
+
+    // Insert Vehicle
+    const result = await pool.request()
+      .input('unitCode', sql.NVarChar, UnitCode)
+      .input('type', sql.NVarChar, Type)
+      .input('capacity', sql.Float, Capacity)
+      .input('licensePlate', sql.NVarChar, LicensePlate)
+      .query(`
+        INSERT INTO TransportUnit (UnitCode, Type, Capacity, LicensePlate)
+        OUTPUT INSERTED.UnitID
+        VALUES (@unitCode, @type, @capacity, @licensePlate)
+      `);
+
+    res.status(201).json({ message: 'Vehicle created successfully', unitId: result.recordset[0].UnitID });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // Get Shipments
 app.get('/api/shipments', async (req, res, next) => {
   const { date, vehicleType, destWarehouse } = req.query;

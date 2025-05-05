@@ -7,7 +7,7 @@ let vehicles = [];
 let vietnamPolygons = [];
 let geoReady = false;
 let isLoading = false;
-let isSimulating = false; // Biến để theo dõi trạng thái giả lập
+let isSimulating = false;
 
 // Haversine Formula
 function haversine(lat1, lon1, lat2, lon2) {
@@ -182,11 +182,100 @@ function resetTripForm() {
   document.getElementById('createTripForm').reset();
   document.getElementById('originCoords').textContent = 'Coordinates: Not selected';
   document.getElementById('destCoords').textContent = 'Coordinates: Not selected';
+  clearTripFormErrors();
+}
+
+// Reset Vehicle Form
+function resetVehicleForm() {
+  document.getElementById('createVehicleForm').reset();
+  clearVehicleFormErrors();
+}
+
+// Clear Trip Form Errors
+function clearTripFormErrors() {
+  document.getElementById('tripOriginWarehouseError').textContent = '';
+  document.getElementById('tripDestWarehouseError').textContent = '';
+  document.getElementById('tripVehicleTypeError').textContent = '';
+  document.getElementById('tripDateError').textContent = '';
+  document.getElementById('tripWeightError').textContent = '';
+}
+
+// Clear Vehicle Form Errors
+function clearVehicleFormErrors() {
+  document.getElementById('vehicleCodeError').textContent = '';
+  document.getElementById('vehicleTypeError').textContent = '';
+  document.getElementById('vehicleCapacityError').textContent = '';
+  document.getElementById('vehicleLicensePlateError').textContent = '';
+}
+
+// Create Vehicle
+async function createVehicle(event) {
+  event.preventDefault();
+  clearVehicleFormErrors();
+
+  const unitCode = document.getElementById('vehicleCode').value.trim();
+  const type = document.getElementById('vehicleTypeInput').value;
+  const capacity = Number(document.getElementById('vehicleCapacity').value);
+  const licensePlate = document.getElementById('vehicleLicensePlate').value.trim();
+
+  let hasError = false;
+  if (!unitCode) {
+    document.getElementById('vehicleCodeError').textContent = 'Please enter unit code';
+    hasError = true;
+  }
+  if (!type) {
+    document.getElementById('vehicleTypeError').textContent = 'Please select vehicle type';
+    hasError = true;
+  }
+  if (!capacity || capacity <= 0) {
+    document.getElementById('vehicleCapacityError').textContent = 'Please enter a valid capacity';
+    hasError = true;
+  }
+  if (!licensePlate) {
+    document.getElementById('vehicleLicensePlateError').textContent = 'Please enter license plate';
+    hasError = true;
+  }
+  if (hasError) return;
+
+  const vehicle = {
+    UnitCode: unitCode,
+    Type: type,
+    Capacity: capacity,
+    LicensePlate: licensePlate
+  };
+
+  setLoading(true);
+  try {
+    const resp = await fetch('/api/vehicles', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(vehicle)
+    });
+    if (!resp.ok) {
+      const errorData = await resp.json();
+      if (errorData.error.includes('Unit code or license plate already exists')) {
+        document.getElementById('vehicleCodeError').textContent = 'Unit code or license plate already exists';
+      } else {
+        throw new Error(errorData.error || 'Failed to create vehicle');
+      }
+      return;
+    }
+    showToast('Vehicle created successfully', 'success');
+    resetVehicleForm();
+    await loadVehicles();
+  } catch (e) {
+    console.error('❌ Failed to create vehicle:', e);
+    showToast(`Failed to create vehicle: ${e.message}`, 'error');
+  } finally {
+    setLoading(false);
+  }
 }
 
 // Create Trip
 async function createTrip(event) {
   event.preventDefault();
+  clearTripFormErrors();
+
   if (!geoReady) {
     showToast('Please wait for Vietnam borders to load', 'error');
     return;
@@ -198,34 +287,55 @@ async function createTrip(event) {
   const tripDate = document.getElementById('tripDate').value;
   const weight = Number(document.getElementById('tripWeight').value);
 
-  if (!originWarehouseID) return showToast('Please select origin warehouse', 'error');
-  if (!destWarehouseID) return showToast('Please select destination warehouse', 'error');
-  if (!vehicleID) return showToast('Please select vehicle', 'error');
-  if (!tripDate) return showToast('Please select trip date', 'error');
-  if (!weight || weight <= 0) return showToast('Please enter a valid weight', 'error');
+  let hasError = false;
+  if (!originWarehouseID) {
+    document.getElementById('tripOriginWarehouseError').textContent = 'Please select origin warehouse';
+    hasError = true;
+  }
+  if (!destWarehouseID) {
+    document.getElementById('tripDestWarehouseError').textContent = 'Please select destination warehouse';
+    hasError = true;
+  }
+  if (!vehicleID) {
+    document.getElementById('tripVehicleTypeError').textContent = 'Please select vehicle';
+    hasError = true;
+  }
+  if (!tripDate) {
+    document.getElementById('tripDateError').textContent = 'Please select trip date';
+    hasError = true;
+  }
+  if (!weight || weight <= 0) {
+    document.getElementById('tripWeightError').textContent = 'Please enter a valid weight';
+    hasError = true;
+  }
+  if (hasError) return;
 
   const originWarehouse = warehouses.find(w => w.WarehouseID.toString() === originWarehouseID);
   const destWarehouse = warehouses.find(w => w.WarehouseID.toString() === destWarehouseID);
 
   if (!originWarehouse || !originWarehouse.Lat || !originWarehouse.Lng) {
-    return showToast('Invalid origin warehouse or missing coordinates', 'error');
+    document.getElementById('tripOriginWarehouseError').textContent = 'Invalid origin warehouse or missing coordinates';
+    return;
   }
   if (!destWarehouse || !destWarehouse.Lat || !destWarehouse.Lng) {
-    return showToast('Invalid destination warehouse or missing coordinates', 'error');
+    document.getElementById('tripDestWarehouseError').textContent = 'Invalid destination warehouse or missing coordinates';
+    return;
   }
 
   const origin = [originWarehouse.Lat, originWarehouse.Lng];
   const dest = [destWarehouse.Lat, destWarehouse.Lng];
 
   if (!isInVietnam(origin[0], origin[1]) || !isInVietnam(dest[0], dest[1])) {
-    return showToast('Origin or destination warehouse is outside Vietnam', 'error');
+    document.getElementById('tripOriginWarehouseError').textContent = 'Origin or destination warehouse is outside Vietnam';
+    return;
   }
 
   setLoading(true);
   const path = await fetchRouteORS(origin, dest);
   if (path.length < 2) {
     setLoading(false);
-    return showToast('Unable to create a valid route', 'error');
+    document.getElementById('tripOriginWarehouseError').textContent = 'Unable to create a valid route';
+    return;
   }
 
   const shipment = {
@@ -289,7 +399,7 @@ async function showShipmentHistory(shipmentId, vehicleCode) {
   modal.className = 'modal';
   modal.innerHTML = `
     <div class="modal-content">
-      <span class="modal-close">&times;</span>
+      <span class="modal-close">×</span>
       <h3>Shipment History for Vehicle ${vehicleCode}</h3>
       <table class="history-table">
         <thead>
@@ -392,7 +502,6 @@ async function loadData() {
     return;
   }
 
-  // Khóa nút Load Data
   const loadDataBtn = document.getElementById('loadData');
   loadDataBtn.disabled = true;
   loadDataBtn.style.background = '#ccc';
@@ -443,7 +552,6 @@ async function loadData() {
     });
   });
 
-  // Clear Map Layers
   map.eachLayer(l => {
     if (l instanceof L.Polyline || l instanceof L.Marker) map.removeLayer(l);
   });
@@ -471,20 +579,16 @@ async function loadData() {
     map.fitBounds(L.latLngBounds(allPts).pad(0.2));
   }
 
-  // Initialize Status Table
   updateStatusTable(byVeh);
 
-  // Theo dõi số lượng chuyến đi chưa hoàn tất
   let pendingShipments = Object.keys(byVeh).length;
 
-  // Animate Routes for Pending/Moving Shipments
   for (const [code, v] of Object.entries(byVeh)) {
     let acc = 0;
     v.currentSegment = 0;
     for (let segIdx = 0; segIdx < v.segments.length; segIdx++) {
       const seg = v.segments[segIdx];
       if (seg.status === 'Completed') {
-        // Vẽ đường cho Completed nhưng không chạy giả lập
         const path = await fetchRouteORS(seg.origin, seg.dest);
         L.polyline(path, { color: 'green', weight: seg.weight / 1000 + 1, dashArray: '5, 10' }).addTo(map);
         v.currentWeight = seg.weight;
@@ -492,10 +596,8 @@ async function loadData() {
         v.currentSegment = segIdx;
         v.totalDist = seg.totalDistance;
         updateStatusTable(byVeh);
-        // Giảm số lượng chuyến đi chưa hoàn tất
         pendingShipments--;
         if (pendingShipments === 0) {
-          // Tất cả các chuyến đi đã hoàn tất, mở khóa nút
           resetLoadDataButton();
           showToast('All shipments completed', 'success');
         }
@@ -538,10 +640,8 @@ async function loadData() {
           await updateShipmentStatus(seg.shipmentId, 'Completed', v.totalDist);
           updateStatusTable(byVeh);
 
-          // Giảm số lượng chuyến đi chưa hoàn tất
           pendingShipments--;
           if (pendingShipments === 0) {
-            // Tất cả các chuyến đi đã hoàn tất, mở khóa nút
             resetLoadDataButton();
             showToast('All shipments completed', 'success');
           }
@@ -614,7 +714,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   await loadVietnamGeoJSON();
   await Promise.all([loadWarehouses(), loadVehicles()]);
   document.getElementById('createTripForm').addEventListener('submit', createTrip);
-  document.getElementById('resetTripForm').addEventListener('click', resetTripForm);
+  document.getElementById('cancelTripForm').addEventListener('click', resetTripForm);
+  document.getElementById('createVehicleForm').addEventListener('submit', createVehicle);
+  document.getElementById('cancelVehicleForm').addEventListener('click', resetVehicleForm);
   document.getElementById('loadData').addEventListener('click', loadData);
   document.getElementById('refreshPage').addEventListener('click', () => {
     location.reload();

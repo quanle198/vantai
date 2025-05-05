@@ -1,0 +1,5 @@
+step 1: gõ lệnh npm install
+step 2: install file db vantai.bak (\van-tai-app\vantai.bak)
+step 3: update kết nối tới db ở file .env (username, pass, server name, db name)
+step 4: gõ lệnh node server.js
+step 5: truy cập http://localhost:3000 để xem kết quả

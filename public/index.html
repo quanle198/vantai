@@ -6,6 +6,7 @@
   <title>Transportation Route Playback – Vietnam</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"/>
   <link rel="stylesheet" href="./styles.css"/>
 </head>
 <body>
@@ -30,34 +31,98 @@
     <button id="refreshPage">Refresh</button>
   </div>
 
-  <form id="createTripForm" aria-labelledby="formTitle">
-    <h3 id="formTitle">Create New Trip</h3>
-    <label for="tripOriginWarehouse">Origin Warehouse:
-      <select id="tripOriginWarehouse" required aria-required="true">
-        <option value="">Select Origin</option>
-      </select>
-      <span id="originCoords" class="coords">Coordinates: Not selected</span>
-    </label>
-    <label for="tripDestWarehouse">Destination Warehouse:
-      <select id="tripDestWarehouse" required aria-required="true">
-        <option value="">Select Destination</option>
-      </select>
-      <span id="destCoords" class="coords">Coordinates: Not selected</span>
-    </label>
-    <label for="tripVehicleType">Vehicle:
-      <select id="tripVehicleType" required aria-required="true">
-        <option value="">Select Vehicle</option>
-      </select>
-    </label>
-    <label for="tripDate">Trip Date:
-      <input type="date" id="tripDate" required aria-required="true">
-    </label>
-    <label for="tripWeight">Weight (kg):
-      <input type="number" id="tripWeight" min="0" step="1" placeholder="Enter weight" required aria-required="true">
-    </label>
+  <form id="createTripForm" aria-labelledby="formTitle" class="trip-form">
+    <h3 id="formTitle"><i class="fas fa-route"></i> Create New Trip</h3>
+    <div class="form-grid">
+      <div class="form-group">
+        <label for="tripOriginWarehouse">
+          <i class="fas fa-warehouse"></i> Origin Warehouse
+          <select id="tripOriginWarehouse" required aria-required="true">
+            <option value="">Select Origin</option>
+          </select>
+        </label>
+        <span id="originCoords" class="coords">Coordinates: Not selected</span>
+        <span class="error-message" id="tripOriginWarehouseError"></span>
+      </div>
+      <div class="form-group">
+        <label for="tripDestWarehouse">
+          <i class="fas fa-warehouse"></i> Destination Warehouse
+          <select id="tripDestWarehouse" required aria-required="true">
+            <option value="">Select Destination</option>
+          </select>
+        </label>
+        <span id="destCoords" class="coords">Coordinates: Not selected</span>
+        <span class="error-message" id="tripDestWarehouseError"></span>
+      </div>
+      <div class="form-group">
+        <label for="tripVehicleType">
+          <i class="fas fa-truck"></i> Vehicle
+          <select id="tripVehicleType" required aria-required="true">
+            <option value="">Select Vehicle</option>
+          </select>
+        </label>
+        <span class="error-message" id="tripVehicleTypeError"></span>
+      </div>
+      <div class="form-group">
+        <label for="tripDate">
+          <i class="fas fa-calendar-alt"></i> Trip Date
+          <input type="date" id="tripDate" required aria-required="true">
+        </label>
+        <span class="error-message" id="tripDateError"></span>
+      </div>
+      <div class="form-group">
+        <label for="tripWeight">
+          <i class="fas fa-weight-hanging"></i> Weight (kg)
+          <input type="number" id="tripWeight" min="0" step="1" placeholder="e.g., 5000" required aria-required="true">
+        </label>
+        <span class="error-message" id="tripWeightError"></span>
+      </div>
+    </div>
     <div class="form-buttons">
-      <button type="submit">Create Trip</button>
-      <button type="button" id="resetTripForm" class="reset">Reset Form</button>
+      <button type="submit" class="btn btn-primary"><i class="fas fa-plus"></i> Create Trip</button>
+      <button type="button" id="cancelTripForm" class="btn btn-cancel"><i class="fas fa-times"></i> Cancel</button>
+    </div>
+  </form>
+
+  <form id="createVehicleForm" aria-labelledby="vehicleFormTitle" class="vehicle-form">
+    <h3 id="vehicleFormTitle"><i class="fas fa-truck"></i> Create New Vehicle</h3>
+    <div class="form-grid">
+      <div class="form-group">
+        <label for="vehicleCode">
+          <i class="fas fa-id-badge"></i> Unit Code
+          <input type="text" id="vehicleCode" placeholder="e.g., TX003" required aria-required="true">
+        </label>
+        <span class="error-message" id="vehicleCodeError"></span>
+      </div>
+      <div class="form-group">
+        <label for="vehicleTypeInput">
+          <i class="fas fa-truck-pickup"></i> Vehicle Type
+          <select id="vehicleTypeInput" required aria-required="true">
+            <option value="">Select Type</option>
+            <option value="Truck">Truck</option>
+            <option value="Van">Van</option>
+          </select>
+        </label>
+        <span class="error-message" id="vehicleTypeError"></span>
+      </div>
+      <div class="form-group">
+        <label for="vehicleCapacity">
+          <i class="fas fa-weight-hanging"></i> Capacity (kg)
+          <input type="number" id="vehicleCapacity" min="0" step="1" placeholder="e.g., 8000" required aria-required="true">
+        </label>
+        <span class="error-message" id="vehicleCapacityError"></span>
+      </div>
+      <div class="form-group">
+        <label for="vehicleLicensePlate">
+          <i class="fas fa-id-card"></i> License Plate
+          <input type="text" id="vehicleLicensePlate" placeholder="e.g., 51A-123.45" required aria-required="true">
+        </label>
+        <span class="error-message" id="vehicleLicensePlateError"></span>
+      </div>
+    </div>
+    <div class="form-buttons">
+      <button type="submit" class="btn btn-primary"><i class="fas fa-plus"></i> Create Vehicle</button>
+      <button type="button" id="cancelVehicleForm" class="btn btn-cancel"><i class="fas fa-times"></i> Cancel</button>
     </div>
   </form>
 
