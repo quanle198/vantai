@@ -76,7 +76,7 @@ h1 {
   margin: 0 auto;
 }
 
-#createTripForm, #createVehicleForm {
+#createTripForm, #createVehicleForm, #updateTripForm, #updateVehicleForm {
   border: 1px solid #ddd;
   padding: 20px;
   margin-bottom: 20px;
@@ -85,7 +85,7 @@ h1 {
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
-#createTripForm h3, #createVehicleForm h3 {
+#createTripForm h3, #createVehicleForm h3, #updateTripForm h3, #updateVehicleForm h3 {
   margin-top: 0;
   color: #333;
   display: flex;
@@ -202,6 +202,15 @@ h1 {
   background: #c82333;
 }
 
+.btn-edit {
+  background: #ffc107;
+  color: #212529;
+}
+
+.btn-edit:hover {
+  background: #e0a800;
+}
+
 .loading {
   display: none;
   position: fixed;
@@ -269,21 +278,33 @@ h1 {
   background-color: #f1f1f1;
 }
 
-.history-btn {
+.history-btn, .edit-btn {
   padding: 5px 10px;
-  background: #007bff;
-  color: white;
   border: none;
   border-radius: 4px;
   cursor: pointer;
   font-size: 0.85em;
 }
 
+.history-btn {
+  background: #007bff;
+  color: white;
+}
+
 .history-btn:hover {
   background: #0056b3;
 }
 
-.history-btn:disabled {
+.edit-btn {
+  background: #ffc107;
+  color: #212529;
+}
+
+.edit-btn:hover {
+  background: #e0a800;
+}
+
+.history-btn:disabled, .edit-btn:disabled {
   background: #ccc;
   cursor: not-allowed;
 }
@@ -360,6 +381,8 @@ h1 {
   #controls label,
   #createTripForm input,
   #createTripForm select,
+  #updateTripForm input,
+  #updateTripForm select,
   .vehicle-form input,
   .vehicle-form select {
     max-width: 100%;

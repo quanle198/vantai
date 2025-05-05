@@ -124,9 +124,13 @@ async function loadWarehouses() {
     const select = document.getElementById('destWarehouse');
     const originSelect = document.getElementById('tripOriginWarehouse');
     const destSelect = document.getElementById('tripDestWarehouse');
+    const updateOriginSelect = document.getElementById('updateTripOriginWarehouse');
+    const updateDestSelect = document.getElementById('updateTripDestWarehouse');
     select.innerHTML = '<option value="">All Warehouses</option>';
     originSelect.innerHTML = '<option value="">Select Origin</option>';
     destSelect.innerHTML = '<option value="">Select Destination</option>';
+    updateOriginSelect.innerHTML = '<option value="">Select Origin</option>';
+    updateDestSelect.innerHTML = '<option value="">Select Destination</option>';
 
     warehouses.forEach(w => {
       const opt = document.createElement('option');
@@ -135,10 +139,14 @@ async function loadWarehouses() {
       select.appendChild(opt);
       originSelect.appendChild(opt.cloneNode(true));
       destSelect.appendChild(opt.cloneNode(true));
+      updateOriginSelect.appendChild(opt.cloneNode(true));
+      updateDestSelect.appendChild(opt.cloneNode(true));
     });
 
     originSelect.addEventListener('change', updateCoordsDisplay);
     destSelect.addEventListener('change', updateCoordsDisplay);
+    updateOriginSelect.addEventListener('change', updateCoordsDisplay);
+    updateDestSelect.addEventListener('change', updateCoordsDisplay);
   } catch (e) {
     console.error('❌ Failed to load warehouses:', e);
     showToast('Failed to load warehouses', 'error');
@@ -150,12 +158,15 @@ async function loadVehicles() {
   try {
     vehicles = await fetch('/api/vehicles').then(r => r.json());
     const select = document.getElementById('tripVehicleType');
+    const updateSelect = document.getElementById('updateTripVehicleType');
     select.innerHTML = '<option value="">Select Vehicle</option>';
+    updateSelect.innerHTML = '<option value="">Select Vehicle</option>';
     vehicles.forEach(v => {
       const opt = document.createElement('option');
       opt.value = v.UnitID;
       opt.textContent = v.LicensePlate;
       select.appendChild(opt);
+      updateSelect.appendChild(opt.cloneNode(true));
     });
   } catch (e) {
     console.error('❌ Failed to load vehicles:', e);
@@ -167,8 +178,8 @@ async function loadVehicles() {
 function updateCoordsDisplay(e) {
   const select = e.target;
   const warehouseID = select.value;
-  const isOrigin = select.id === 'tripOriginWarehouse';
-  const coordsDisplay = document.getElementById(isOrigin ? 'originCoords' : 'destCoords');
+  const isOrigin = select.id.includes('Origin');
+  const coordsDisplay = document.getElementById(isOrigin ? (select.id.includes('update') ? 'updateOriginCoords' : 'originCoords') : (select.id.includes('update') ? 'updateDestCoords' : 'destCoords'));
   const warehouse = warehouses.find(w => w.WarehouseID.toString() === warehouseID);
   if (warehouse && warehouse.Lat && warehouse.Lng) {
     coordsDisplay.textContent = `Coordinates: ${warehouse.Lat.toFixed(6)}, ${warehouse.Lng.toFixed(6)}`;
@@ -185,10 +196,28 @@ function resetTripForm() {
   clearTripFormErrors();
 }
 
+// Reset Update Trip Form
+function resetUpdateTripForm() {
+  document.getElementById('updateTripForm').reset();
+  document.getElementById('updateOriginCoords').textContent = 'Coordinates: Not selected';
+  document.getElementById('updateDestCoords').textContent = 'Coordinates: Not selected';
+  clearUpdateTripFormErrors();
+  document.getElementById('updateTripForm').style.display = 'none';
+  document.getElementById('createTripForm').style.display = 'block';
+}
+
 // Reset Vehicle Form
 function resetVehicleForm() {
   document.getElementById('createVehicleForm').reset();
   clearVehicleFormErrors();
+}
+
+// Reset Update Vehicle Form
+function resetUpdateVehicleForm() {
+  document.getElementById('updateVehicleForm').reset();
+  clearUpdateVehicleFormErrors();
+  document.getElementById('updateVehicleForm').style.display = 'none';
+  document.getElementById('createVehicleForm').style.display = 'block';
 }
 
 // Clear Trip Form Errors
@@ -200,12 +229,29 @@ function clearTripFormErrors() {
   document.getElementById('tripWeightError').textContent = '';
 }
 
+// Clear Update Trip Form Errors
+function clearUpdateTripFormErrors() {
+  document.getElementById('updateTripOriginWarehouseError').textContent = '';
+  document.getElementById('updateTripDestWarehouseError').textContent = '';
+  document.getElementById('updateTripVehicleTypeError').textContent = '';
+  document.getElementById('updateTripDateError').textContent = '';
+  document.getElementById('updateTripWeightError').textContent = '';
+}
+
 // Clear Vehicle Form Errors
 function clearVehicleFormErrors() {
   document.getElementById('vehicleCodeError').textContent = '';
   document.getElementById('vehicleTypeError').textContent = '';
   document.getElementById('vehicleCapacityError').textContent = '';
   document.getElementById('vehicleLicensePlateError').textContent = '';
+}
+
+// Clear Update Vehicle Form Errors
+function clearUpdateVehicleFormErrors() {
+  document.getElementById('updateVehicleCodeError').textContent = '';
+  document.getElementById('updateVehicleTypeError').textContent = '';
+  document.getElementById('updateVehicleCapacityError').textContent = '';
+  document.getElementById('updateVehicleLicensePlateError').textContent = '';
 }
 
 // Create Vehicle
@@ -266,6 +312,70 @@ async function createVehicle(event) {
   } catch (e) {
     console.error('❌ Failed to create vehicle:', e);
     showToast(`Failed to create vehicle: ${e.message}`, 'error');
+  } finally {
+    setLoading(false);
+  }
+}
+
+// Update Vehicle
+async function updateVehicle(event) {
+  event.preventDefault();
+  clearUpdateVehicleFormErrors();
+
+  const unitId = document.getElementById('updateVehicleId').value;
+  const unitCode = document.getElementById('updateVehicleCode').value.trim();
+  const type = document.getElementById('updateVehicleTypeInput').value;
+  const capacity = Number(document.getElementById('updateVehicleCapacity').value);
+  const licensePlate = document.getElementById('updateVehicleLicensePlate').value.trim();
+
+  let hasError = false;
+  if (!unitCode) {
+    document.getElementById('updateVehicleCodeError').textContent = 'Please enter unit code';
+    hasError = true;
+  }
+  if (!type) {
+    document.getElementById('updateVehicleTypeError').textContent = 'Please select vehicle type';
+    hasError = true;
+  }
+  if (!capacity || capacity <= 0) {
+    document.getElementById('updateVehicleCapacityError').textContent = 'Please enter a valid capacity';
+    hasError = true;
+  }
+  if (!licensePlate) {
+    document.getElementById('updateVehicleLicensePlateError').textContent = 'Please enter license plate';
+    hasError = true;
+  }
+  if (hasError) return;
+
+  const vehicle = {
+    UnitCode: unitCode,
+    Type: type,
+    Capacity: capacity,
+    LicensePlate: licensePlate
+  };
+
+  setLoading(true);
+  try {
+    const resp = await fetch(`/api/vehicles/${unitId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(vehicle)
+    });
+    if (!resp.ok) {
+      const errorData = await resp.json();
+      if (errorData.error.includes('Unit code or license plate already exists')) {
+        document.getElementById('updateVehicleCodeError').textContent = 'Unit code or license plate already exists';
+      } else {
+        throw new Error(errorData.error || 'Failed to update vehicle');
+      }
+      return;
+    }
+    showToast('Vehicle updated successfully', 'success');
+    resetUpdateVehicleForm();
+    await loadVehicles();
+  } catch (e) {
+    console.error('❌ Failed to update vehicle:', e);
+    showToast(`Failed to update vehicle: ${e.message}`, 'error');
   } finally {
     setLoading(false);
   }
@@ -363,6 +473,145 @@ async function createTrip(event) {
   }
 }
 
+// Update Trip
+async function updateTrip(event) {
+  event.preventDefault();
+  clearUpdateTripFormErrors();
+
+  if (!geoReady) {
+    showToast('Please wait for Vietnam borders to load', 'error');
+    return;
+  }
+
+  const shipmentId = document.getElementById('updateTripId').value;
+  const originWarehouseID = document.getElementById('updateTripOriginWarehouse').value;
+  const destWarehouseID = document.getElementById('updateTripDestWarehouse').value;
+  const vehicleID = document.getElementById('updateTripVehicleType').value;
+  const tripDate = document.getElementById('updateTripDate').value;
+  const weight = Number(document.getElementById('updateTripWeight').value);
+
+  let hasError = false;
+  if (!originWarehouseID) {
+    document.getElementById('updateTripOriginWarehouseError').textContent = 'Please select origin warehouse';
+    hasError = true;
+  }
+  if (!destWarehouseID) {
+    document.getElementById('updateTripDestWarehouseError').textContent = 'Please select destination warehouse';
+    hasError = true;
+  }
+  if (!vehicleID) {
+    document.getElementById('updateTripVehicleTypeError').textContent = 'Please select vehicle';
+    hasError = true;
+  }
+  if (!tripDate) {
+    document.getElementById('updateTripDateError').textContent = 'Please select trip date';
+    hasError = true;
+  }
+  if (!weight || weight <= 0) {
+    document.getElementById('updateTripWeightError').textContent = 'Please enter a valid weight';
+    hasError = true;
+  }
+  if (hasError) return;
+
+  const originWarehouse = warehouses.find(w => w.WarehouseID.toString() === originWarehouseID);
+  const destWarehouse = warehouses.find(w => w.WarehouseID.toString() === destWarehouseID);
+
+  if (!originWarehouse || !originWarehouse.Lat || !originWarehouse.Lng) {
+    document.getElementById('updateTripOriginWarehouseError').textContent = 'Invalid origin warehouse or missing coordinates';
+    return;
+  }
+  if (!destWarehouse || !destWarehouse.Lat || !destWarehouse.Lng) {
+    document.getElementById('updateTripDestWarehouseError').textContent = 'Invalid destination warehouse or missing coordinates';
+    return;
+  }
+
+  const origin = [originWarehouse.Lat, originWarehouse.Lng];
+  const dest = [destWarehouse.Lat, destWarehouse.Lng];
+
+  if (!isInVietnam(origin[0], origin[1]) || !isInVietnam(dest[0], dest[1])) {
+    document.getElementById('updateTripOriginWarehouseError').textContent = 'Origin or destination warehouse is outside Vietnam';
+    return;
+  }
+
+  setLoading(true);
+  const path = await fetchRouteORS(origin, dest);
+  if (path.length < 2) {
+    setLoading(false);
+    document.getElementById('updateTripOriginWarehouseError').textContent = 'Unable to create a valid route';
+    return;
+  }
+
+  const shipment = {
+    OriginWarehouseID: parseInt(originWarehouseID),
+    DestWarehouseID: parseInt(destWarehouseID),
+    VehicleID: parseInt(vehicleID),
+    ShipmentDate: tripDate,
+    Weight: weight
+  };
+
+  try {
+    const resp = await fetch(`/api/shipments/${shipmentId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(shipment)
+    });
+    if (!resp.ok) throw new Error(await resp.text());
+    showToast('Trip updated successfully', 'success');
+    resetUpdateTripForm();
+  } catch (e) {
+    console.error('❌ Failed to update trip:', e);
+    showToast(`Failed to update trip: ${e.message}`, 'error');
+  } finally {
+    setLoading(false);
+  }
+}
+
+// Populate Update Trip Form
+async function populateUpdateTripForm(shipmentId) {
+  try {
+    const resp = await fetch(`/api/shipments/${shipmentId}`);
+    if (!resp.ok) throw new Error(await resp.text());
+    const shipment = await resp.json();
+
+    document.getElementById('updateTripId').value = shipment.ShipmentID;
+    document.getElementById('updateTripOriginWarehouse').value = shipment.OriginWarehouseID;
+    document.getElementById('updateTripDestWarehouse').value = shipment.DestWarehouseID;
+    document.getElementById('updateTripVehicleType').value = shipment.VehicleID;
+    document.getElementById('updateTripDate').value = shipment.ShipmentDate.split('T')[0];
+    document.getElementById('updateTripWeight').value = shipment.Weight;
+
+    updateCoordsDisplay({ target: document.getElementById('updateTripOriginWarehouse') });
+    updateCoordsDisplay({ target: document.getElementById('updateTripDestWarehouse') });
+
+    document.getElementById('createTripForm').style.display = 'none';
+    document.getElementById('updateTripForm').style.display = 'block';
+  } catch (e) {
+    console.error('❌ Failed to load shipment data:', e);
+    showToast(`Failed to load shipment data: ${e.message}`, 'error');
+  }
+}
+
+// Populate Update Vehicle Form
+async function populateUpdateVehicleForm(unitId) {
+  try {
+    const resp = await fetch(`/api/vehicles/${unitId}`);
+    if (!resp.ok) throw new Error(await resp.text());
+    const vehicle = await resp.json();
+
+    document.getElementById('updateVehicleId').value = vehicle.UnitID;
+    document.getElementById('updateVehicleCode').value = vehicle.UnitCode;
+    document.getElementById('updateVehicleTypeInput').value = vehicle.Type;
+    document.getElementById('updateVehicleCapacity').value = vehicle.Capacity;
+    document.getElementById('updateVehicleLicensePlate').value = vehicle.LicensePlate;
+
+    document.getElementById('createVehicleForm').style.display = 'none';
+    document.getElementById('updateVehicleForm').style.display = 'block';
+  } catch (e) {
+    console.error('❌ Failed to load vehicle data:', e);
+    showToast(`Failed to load vehicle data: ${e.message}`, 'error');
+  }
+}
+
 // Update Shipment Status and TotalDistance
 async function updateShipmentStatus(shipmentId, status, totalDistance) {
   try {
@@ -448,6 +697,7 @@ function updateStatusTable(byVeh) {
             <th>Total Distance (km)</th>
             <th>Current Weight (kg)</th>
             <th>History</th>
+            <th>Actions</th>
           </tr>
         </thead>
         <tbody id="statusTableBody"></tbody>
@@ -461,6 +711,7 @@ function updateStatusTable(byVeh) {
 
   Object.entries(byVeh).forEach(([code, v]) => {
     const shipmentId = v.segments[v.currentSegment || 0]?.shipmentId || '';
+    const vehicleId = v.segments[v.currentSegment || 0]?.vehicleId || v.vehicleId || '';
     const row = document.createElement('tr');
     row.innerHTML = `
       <td>${v.plate}</td>
@@ -469,6 +720,10 @@ function updateStatusTable(byVeh) {
       <td id="distance-${v.plate}">${v.totalDist.toFixed(2)}</td>
       <td id="weight-${v.plate}">${v.currentWeight || 0}</td>
       <td><button class="history-btn" data-shipment-id="${shipmentId}" data-vehicle-code="${v.plate}" ${!shipmentId ? 'disabled' : ''}>View History</button></td>
+      <td>
+        <button class="edit-btn" data-shipment-id="${shipmentId}" data-vehicle-id="${vehicleId}" ${!shipmentId ? 'disabled' : ''}>Edit Trip</button>
+        <button class="edit-btn" data-vehicle-id="${vehicleId}" ${!vehicleId ? 'disabled' : ''}>Edit Vehicle</button>
+      </td>
     `;
     tbody.appendChild(row);
   });
@@ -478,6 +733,18 @@ function updateStatusTable(byVeh) {
       const shipmentId = btn.getAttribute('data-shipment-id');
       const vehicleCode = btn.getAttribute('data-vehicle-code');
       if (shipmentId) showShipmentHistory(shipmentId, vehicleCode);
+    });
+  });
+
+  document.querySelectorAll('.edit-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const shipmentId = btn.getAttribute('data-shipment-id');
+      const vehicleId = btn.getAttribute('data-vehicle-id');
+      if (shipmentId) {
+        populateUpdateTripForm(shipmentId);
+      } else if (vehicleId) {
+        populateUpdateVehicleForm(vehicleId);
+      }
     });
   });
 }
@@ -532,6 +799,7 @@ async function loadData() {
     if (!byVeh[s.ShipmentID]) {
       byVeh[s.ShipmentID] = {
         plate: s.LicensePlate,
+        vehicleId: s.UnitID,
         segments: [],
         totalDist: s.TotalDistance || 0,
         div: null,
@@ -543,6 +811,7 @@ async function loadData() {
     }
     byVeh[s.ShipmentID].segments.push({
       shipmentId: s.ShipmentID,
+      vehicleId: s.UnitID,
       origin: [s.OriginLat, s.OriginLng],
       dest: [s.DestLat, s.DestLng],
       weight: s.Weight,
@@ -715,8 +984,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   await Promise.all([loadWarehouses(), loadVehicles()]);
   document.getElementById('createTripForm').addEventListener('submit', createTrip);
   document.getElementById('cancelTripForm').addEventListener('click', resetTripForm);
+  document.getElementById('updateTripForm').addEventListener('submit', updateTrip);
+  document.getElementById('cancelUpdateTripForm').addEventListener('click', resetUpdateTripForm);
   document.getElementById('createVehicleForm').addEventListener('submit', createVehicle);
   document.getElementById('cancelVehicleForm').addEventListener('click', resetVehicleForm);
+  document.getElementById('updateVehicleForm').addEventListener('submit', updateVehicle);
+  document.getElementById('cancelUpdateVehicleForm').addEventListener('click', resetUpdateVehicleForm);
   document.getElementById('loadData').addEventListener('click', loadData);
   document.getElementById('refreshPage').addEventListener('click', () => {
     location.reload();

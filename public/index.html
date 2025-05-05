@@ -84,6 +84,60 @@
     </div>
   </form>
 
+  <form id="updateTripForm" aria-labelledby="updateFormTitle" class="trip-form" style="display: none;">
+    <h3 id="updateFormTitle"><i class="fas fa-edit"></i> Update Trip</h3>
+    <input type="hidden" id="updateTripId">
+    <div class="form-grid">
+      <div class="form-group">
+        <label for="updateTripOriginWarehouse">
+          <i class="fas fa-warehouse"></i> Origin Warehouse
+          <select id="updateTripOriginWarehouse" required aria-required="true">
+            <option value="">Select Origin</option>
+          </select>
+        </label>
+        <span id="updateOriginCoords" class="coords">Coordinates: Not selected</span>
+        <span class="error-message" id="updateTripOriginWarehouseError"></span>
+      </div>
+      <div class="form-group">
+        <label for="updateTripDestWarehouse">
+          <i class="fas fa-warehouse"></i> Destination Warehouse
+          <select id="updateTripDestWarehouse" required aria-required="true">
+            <option value="">Select Destination</option>
+          </select>
+        </label>
+        <span id="updateDestCoords" class="coords">Coordinates: Not selected</span>
+        <span class="error-message" id="updateTripDestWarehouseError"></span>
+      </div>
+      <div class="form-group">
+        <label for="updateTripVehicleType">
+          <i class="fas fa-truck"></i> Vehicle
+          <select id="updateTripVehicleType" required aria-required="true">
+            <option value="">Select Vehicle</option>
+          </select>
+        </label>
+        <span class="error-message" id="updateTripVehicleTypeError"></span>
+      </div>
+      <div class="form-group">
+        <label for="updateTripDate">
+          <i class="fas fa-calendar-alt"></i> Trip Date
+          <input type="date" id="updateTripDate" required aria-required="true">
+        </label>
+        <span class="error-message" id="updateTripDateError"></span>
+      </div>
+      <div class="form-group">
+        <label for="updateTripWeight">
+          <i class="fas fa-weight-hanging"></i> Weight (kg)
+          <input type="number" id="updateTripWeight" min="0" step="1" placeholder="e.g., 5000" required aria-required="true">
+        </label>
+        <span class="error-message" id="updateTripWeightError"></span>
+      </div>
+    </div>
+    <div class="form-buttons">
+      <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Update Trip</button>
+      <button type="button" id="cancelUpdateTripForm" class="btn btn-cancel"><i class="fas fa-times"></i> Cancel</button>
+    </div>
+  </form>
+
   <form id="createVehicleForm" aria-labelledby="vehicleFormTitle" class="vehicle-form">
     <h3 id="vehicleFormTitle"><i class="fas fa-truck"></i> Create New Vehicle</h3>
     <div class="form-grid">
@@ -123,6 +177,49 @@
     <div class="form-buttons">
       <button type="submit" class="btn btn-primary"><i class="fas fa-plus"></i> Create Vehicle</button>
       <button type="button" id="cancelVehicleForm" class="btn btn-cancel"><i class="fas fa-times"></i> Cancel</button>
+    </div>
+  </form>
+
+  <form id="updateVehicleForm" aria-labelledby="updateVehicleFormTitle" class="vehicle-form" style="display: none;">
+    <h3 id="updateVehicleFormTitle"><i class="fas fa-edit"></i> Update Vehicle</h3>
+    <input type="hidden" id="updateVehicleId">
+    <div class="form-grid">
+      <div class="form-group">
+        <label for="updateVehicleCode">
+          <i class="fas fa-id-badge"></i> Unit Code
+          <input type="text" id="updateVehicleCode" placeholder="e.g., TX003" required aria-required="true">
+        </label>
+        <span class="error-message" id="updateVehicleCodeError"></span>
+      </div>
+      <div class="form-group">
+        <label for="updateVehicleTypeInput">
+          <i class="fas fa-truck-pickup"></i> Vehicle Type
+          <select id="updateVehicleTypeInput" required aria-required="true">
+            <option value="">Select Type</option>
+            <option value="Truck">Truck</option>
+            <option value="Van">Van</option>
+          </select>
+        </label>
+        <span class="error-message" id="updateVehicleTypeError"></span>
+      </div>
+      <div class="form-group">
+        <label for="updateVehicleCapacity">
+          <i class="fas fa-weight-hanging"></i> Capacity (kg)
+          <input type="number" id="updateVehicleCapacity" min="0" step="1" placeholder="e.g., 8000" required aria-required="true">
+        </label>
+        <span class="error-message" id="updateVehicleCapacityError"></span>
+      </div>
+      <div class="form-group">
+        <label for="updateVehicleLicensePlate">
+          <i class="fas fa-id-card"></i> License Plate
+          <input type="text" id="updateVehicleLicensePlate" placeholder="e.g., 51A-123.45" required aria-required="true">
+        </label>
+        <span class="error-message" id="updateVehicleLicensePlateError"></span>
+      </div>
+    </div>
+    <div class="form-buttons">
+      <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Update Vehicle</button>
+      <button type="button" id="cancelUpdateVehicleForm" class="btn btn-cancel"><i class="fas fa-times"></i> Cancel</button>
     </div>
   </form>
 

@@ -69,10 +69,30 @@ app.get('/api/warehouses', async (req, res, next) => {
 app.get('/api/vehicles', async (req, res, next) => {
   try {
     const result = await pool.request().query(`
-      SELECT UnitID, UnitCode, Type, LicensePlate
+      SELECT UnitID, UnitCode, Type, LicensePlate, Capacity
       FROM TransportUnit
     `);
     res.json(result.recordset);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Get Vehicle by ID
+app.get('/api/vehicles/:id', async (req, res, next) => {
+  const { id } = req.params;
+  try {
+    const result = await pool.request()
+      .input('unitId', sql.Int, id)
+      .query(`
+        SELECT UnitID, UnitCode, Type, LicensePlate, Capacity
+        FROM TransportUnit
+        WHERE UnitID = @unitId
+      `);
+    if (result.recordset.length === 0) {
+      return res.status(404).json({ error: 'Vehicle not found' });
+    }
+    res.json(result.recordset[0]);
   } catch (err) {
     next(err);
   }
@@ -123,6 +143,59 @@ app.post('/api/vehicles', async (req, res, next) => {
   }
 });
 
+// Update Vehicle
+app.put('/api/vehicles/:id', async (req, res, next) => {
+  const { id } = req.params;
+  const { UnitCode, Type, Capacity, LicensePlate } = req.body;
+  if (!UnitCode || !Type || !Capacity || !LicensePlate) {
+    return res.status(400).json({ error: 'Missing required fields' });
+  }
+  if (!['Truck', 'Van'].includes(Type)) {
+    return res.status(400).json({ error: 'Invalid vehicle type' });
+  }
+  if (typeof Capacity !== 'number' || Capacity <= 0) {
+    return res.status(400).json({ error: 'Invalid capacity' });
+  }
+
+  try {
+    // Check if UnitCode or LicensePlate already exists for another vehicle
+    const checkResult = await pool.request()
+      .input('unitId', sql.Int, id)
+      .input('unitCode', sql.NVarChar, UnitCode)
+      .input('licensePlate', sql.NVarChar, LicensePlate)
+      .query(`
+        SELECT UnitID
+        FROM TransportUnit
+        WHERE (UnitCode = @unitCode OR LicensePlate = @licensePlate)
+        AND UnitID != @unitId
+      `);
+    if (checkResult.recordset.length > 0) {
+      return res.status(400).json({ error: 'Unit code or license plate already exists' });
+    }
+
+    // Update Vehicle
+    const result = await pool.request()
+      .input('unitId', sql.Int, id)
+      .input('unitCode', sql.NVarChar, UnitCode)
+      .input('type', sql.NVarChar, Type)
+      .input('capacity', sql.Float, Capacity)
+      .input('licensePlate', sql.NVarChar, LicensePlate)
+      .query(`
+        UPDATE TransportUnit
+        SET UnitCode = @unitCode, Type = @type, Capacity = @capacity, LicensePlate = @licensePlate
+        WHERE UnitID = @unitId
+      `);
+
+    if (result.rowsAffected[0] === 0) {
+      return res.status(404).json({ error: 'Vehicle not found' });
+    }
+
+    res.json({ message: 'Vehicle updated successfully' });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // Get Shipments
 app.get('/api/shipments', async (req, res, next) => {
   const { date, vehicleType, destWarehouse } = req.query;
@@ -130,9 +203,10 @@ app.get('/api/shipments', async (req, res, next) => {
     let query = `
       SELECT
         s.ShipmentID, s.ShipmentDate, s.Weight, s.Status, s.TotalDistance,
-        tu.UnitCode, tu.Type, tu.LicensePlate,
+        tu.UnitID, tu.UnitCode, tu.Type, tu.LicensePlate,
         o.Longitude AS OriginLng, o.Latitude AS OriginLat,
-        d.Longitude AS DestLng, d.Latitude AS DestLat
+        d.Longitude AS DestLng, d.Latitude AS DestLat,
+        s.OriginWarehouseID, s.DestWarehouseID
       FROM Shipment s
       JOIN TransportUnit tu ON s.UnitID = tu.UnitID
       JOIN Warehouse o ON s.OriginWarehouseID = o.WarehouseID
@@ -162,6 +236,28 @@ app.get('/api/shipments', async (req, res, next) => {
   }
 });
 
+// Get Shipment by ID
+app.get('/api/shipments/:id', async (req, res, next) => {
+  const { id } = req.params;
+  try {
+    const result = await pool.request()
+      .input('shipmentId', sql.Int, id)
+      .query(`
+        SELECT
+          s.ShipmentID, s.ShipmentDate, s.Weight, s.Status, s.TotalDistance,
+          s.UnitID AS VehicleID, s.OriginWarehouseID, s.DestWarehouseID
+        FROM Shipment s
+        WHERE s.ShipmentID = @shipmentId
+      `);
+    if (result.recordset.length === 0) {
+      return res.status(404).json({ error: 'Shipment not found' });
+    }
+    res.json(result.recordset[0]);
+  } catch (err) {
+    next(err);
+  }
+});
+
 // Create Shipment
 app.post('/api/shipments', async (req, res, next) => {
   const { OriginWarehouseID, DestWarehouseID, VehicleID, ShipmentDate, Weight } = req.body;
@@ -184,6 +280,14 @@ app.post('/api/shipments', async (req, res, next) => {
       .query(`SELECT WarehouseID, Latitude, Longitude FROM Warehouse WHERE WarehouseID = @warehouseID`);
     if (!destWarehouse.recordset.length) {
       return res.status(400).json({ error: 'Destination warehouse not found' });
+    }
+
+    // Validate Vehicle
+    const vehicle = await pool.request()
+      .input('vehicleID', sql.Int, VehicleID)
+      .query(`SELECT UnitID FROM TransportUnit WHERE UnitID = @vehicleID`);
+    if (!vehicle.recordset.length) {
+      return res.status(400).json({ error: 'Vehicle not found' });
     }
 
     // Insert Shipment
@@ -219,12 +323,91 @@ app.post('/api/shipments', async (req, res, next) => {
   }
 });
 
+// Update Shipment
+app.put('/api/shipments/:id', async (req, res, next) => {
+  const { id } = req.params;
+  const { OriginWarehouseID, DestWarehouseID, VehicleID, ShipmentDate, Weight } = req.body;
+  if (!OriginWarehouseID || !DestWarehouseID || !VehicleID || !ShipmentDate || !Weight) {
+    return res.status(400).json({ error: 'Missing required fields' });
+  }
+
+  try {
+    // Validate Origin Warehouse
+    const originWarehouse = await pool.request()
+      .input('warehouseID', sql.Int, OriginWarehouseID)
+      .query(`SELECT WarehouseID, Latitude, Longitude FROM Warehouse WHERE WarehouseID = @warehouseID`);
+    if (!originWarehouse.recordset.length) {
+      return res.status(400).json({ error: 'Origin warehouse not found' });
+    }
+
+    // Validate Destination Warehouse
+    const destWarehouse = await pool.request()
+      .input('warehouseID', sql.Int, DestWarehouseID)
+      .query(`SELECT WarehouseID, Latitude, Longitude FROM Warehouse WHERE WarehouseID = @warehouseID`);
+    if (!destWarehouse.recordset.length) {
+      return res.status(400).json({ error: 'Destination warehouse not found' });
+    }
+
+    // Validate Vehicle
+    const vehicle = await pool.request()
+      .input('vehicleID', sql.Int, VehicleID)
+      .query(`SELECT UnitID FROM TransportUnit WHERE UnitID = @vehicleID`);
+    if (!vehicle.recordset.length) {
+      return res.status(400).json({ error: 'Vehicle not found' });
+    }
+
+    // Check if shipment exists and is not completed
+    const shipmentCheck = await pool.request()
+      .input('shipmentId', sql.Int, id)
+      .query(`SELECT Status FROM Shipment WHERE ShipmentID = @shipmentId`);
+    if (shipmentCheck.recordset.length === 0) {
+      return res.status(404).json({ error: 'Shipment not found' });
+    }
+    if (shipmentCheck.recordset[0].Status === 'Completed') {
+      return res.status(400).json({ error: 'Cannot update completed shipment' });
+    }
+
+    // Update Shipment
+    const result = await pool.request()
+      .input('shipmentId', sql.Int, id)
+      .input('shipmentDate', sql.DateTime, new Date(ShipmentDate))
+      .input('weight', sql.Float, Weight)
+      .input('unitID', sql.Int, VehicleID)
+      .input('originWarehouseID', sql.Int, OriginWarehouseID)
+      .input('destWarehouseID', sql.Int, DestWarehouseID)
+      .query(`
+        UPDATE Shipment
+        SET ShipmentDate = @shipmentDate, Weight = @weight, UnitID = @unitID,
+            OriginWarehouseID = @originWarehouseID, DestWarehouseID = @destWarehouseID
+        WHERE ShipmentID = @shipmentId
+      `);
+
+    if (result.rowsAffected[0] === 0) {
+      return res.status(404).json({ error: 'Shipment not found' });
+    }
+
+    // Insert History for update
+    await pool.request()
+      .input('shipmentId', sql.Int, id)
+      .input('status', sql.NVarChar, shipmentCheck.recordset[0].Status)
+      .input('totalDistance', sql.Float, 0)
+      .query(`
+        INSERT INTO ShipmentHistory (ShipmentID, Status, TotalDistance)
+        VALUES (@shipmentId, @status, @totalDistance)
+      `);
+
+    res.json({ message: 'Shipment updated successfully' });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // Update Shipment Status and TotalDistance
 app.patch('/api/shipments/:id/status', async (req, res, next) => {
   const { id } = req.params;
   const { status, totalDistance } = req.body;
   if (!['Pending', 'Moving', 'Completed'].includes(status)) {
-    return res.status(400).json({ error: 'Invalid status' });
+    return res.status(400).json({ error: ' BRA Invalid status' });
   }
   if (totalDistance !== undefined && (typeof totalDistance !== 'number' || totalDistance < 0)) {
     return res.status(400).json({ error: 'Invalid total distance' });
