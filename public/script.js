@@ -693,7 +693,6 @@ function updateStatusTable(byVeh) {
           <tr>
             <th>Vehicle</th>
             <th>Status</th>
-            <th>Current Segment</th>
             <th>Total Distance (km)</th>
             <th>Current Weight (kg)</th>
             <th>History</th>
@@ -716,7 +715,6 @@ function updateStatusTable(byVeh) {
     row.innerHTML = `
       <td>${v.plate}</td>
       <td id="status-${v.plate}">${v.status || 'Idle'}</td>
-      <td id="segment-${v.plate}">${v.currentSegment !== null ? v.currentSegment + 1 : '-'}</td>
       <td id="distance-${v.plate}">${v.totalDist.toFixed(2)}</td>
       <td id="weight-${v.plate}">${v.currentWeight || 0}</td>
       <td><button class="history-btn" data-shipment-id="${shipmentId}" data-vehicle-code="${v.plate}" ${!shipmentId ? 'disabled' : ''}>View History</button></td>
@@ -804,7 +802,7 @@ async function loadData() {
         totalDist: s.TotalDistance || 0,
         div: null,
         marker: null,
-        status: 'Idle',
+        status: s.Status,
         currentSegment: null,
         currentWeight: 0
       };
