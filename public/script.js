@@ -9,6 +9,19 @@ let geoReady = false;
 let isLoading = false;
 let isSimulating = false;
 
+// Format time for display (input in hours)
+function formatTime(hours) {
+  const minutes = hours * 60;
+  if (minutes < 60) {
+    return `${minutes.toFixed(2)} min`;
+  }
+  if (hours < 24) {
+    return `${hours.toFixed(2)} hours`;
+  }
+  const days = hours / 24;
+  return `${days.toFixed(2)} days`;
+}
+
 // Haversine Formula
 function haversine(lat1, lon1, lat2, lon2) {
   const R = 6371, r = Math.PI / 180;
@@ -613,15 +626,15 @@ async function populateUpdateVehicleForm(unitId) {
 }
 
 // Update Shipment Status and TotalDistance
-async function updateShipmentStatus(shipmentId, status, totalDistance) {
+async function updateShipmentStatus(shipmentId, status, totalDistance, totalTime) {
   try {
     const resp = await fetch(`/api/shipments/${shipmentId}/status`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status, totalDistance })
+      body: JSON.stringify({ status, totalDistance, totalTime })
     });
     if (!resp.ok) throw new Error(await resp.text());
-    console.log(`✅ Shipment ${shipmentId} updated: Status=${status}, TotalDistance=${totalDistance}`);
+    console.log(`✅ Shipment ${shipmentId} updated: Status=${status}, TotalDistance=${totalDistance}, TotalTime=${totalTime}`);
   } catch (e) {
     console.error(`❌ Failed to update shipment ${shipmentId}:`, e);
     showToast(`Failed to update shipment: ${e.message}`, 'error');
@@ -655,6 +668,7 @@ async function showShipmentHistory(shipmentId, vehicleCode) {
           <tr>
             <th>Status</th>
             <th>Total Distance (km)</th>
+            <th>Total Time</th>
             <th>Change Time</th>
           </tr>
         </thead>
@@ -663,9 +677,10 @@ async function showShipmentHistory(shipmentId, vehicleCode) {
             <tr>
               <td>${h.Status}</td>
               <td>${h.TotalDistance.toFixed(2)}</td>
+              <td>${formatTime(h.TotalTime)}</td>
               <td>${new Date(h.ChangeTime).toLocaleString('vi-VN', { timeZone: 'UTC' })}</td>
             </tr>
-          `).join('') : '<tr><td colspan="3">No history available</td></tr>'}
+          `).join('') : '<tr><td colspan="4">No history available</td></tr>'}
         </tbody>
       </table>
     </div>
@@ -694,6 +709,7 @@ function updateStatusTable(byVeh) {
             <th>Vehicle</th>
             <th>Status</th>
             <th>Total Distance (km)</th>
+            <th>Total Time</th>
             <th>Current Weight (kg)</th>
             <th>History</th>
             <th>Actions</th>
@@ -716,6 +732,7 @@ function updateStatusTable(byVeh) {
       <td>${v.plate}</td>
       <td id="status-${v.plate}">${v.status || 'Idle'}</td>
       <td id="distance-${v.plate}">${v.totalDist.toFixed(2)}</td>
+      <td id="time-${v.plate}">${formatTime(v.totalTime)}</td>
       <td id="weight-${v.plate}">${v.currentWeight || 0}</td>
       <td><button class="history-btn" data-shipment-id="${shipmentId}" data-vehicle-code="${v.plate}" ${!shipmentId ? 'disabled' : ''}>View History</button></td>
       <td>
@@ -793,13 +810,14 @@ async function loadData() {
 
   const byVeh = {};
   shipments.forEach(s => {
-    const code = s.LicensePlate;
-    if (!byVeh[s.ShipmentID]) {
-      byVeh[s.ShipmentID] = {
+    const code = s.ShipmentID.toString();
+    if (!byVeh[code]) {
+      byVeh[code] = {
         plate: s.LicensePlate,
         vehicleId: s.UnitID,
         segments: [],
         totalDist: s.TotalDistance || 0,
+        totalTime: s.TotalTime || 0,
         div: null,
         marker: null,
         status: s.Status,
@@ -807,7 +825,7 @@ async function loadData() {
         currentWeight: 0
       };
     }
-    byVeh[s.ShipmentID].segments.push({
+    byVeh[code].segments.push({
       shipmentId: s.ShipmentID,
       vehicleId: s.UnitID,
       origin: [s.OriginLat, s.OriginLng],
@@ -815,7 +833,8 @@ async function loadData() {
       weight: s.Weight,
       date: s.ShipmentDate,
       status: s.Status,
-      totalDistance: s.TotalDistance || 0
+      totalDistance: s.TotalDistance || 0,
+      totalTime: s.TotalTime || 0
     });
   });
 
@@ -862,6 +881,8 @@ async function loadData() {
         v.status = 'Completed';
         v.currentSegment = segIdx;
         v.totalDist = seg.totalDistance;
+        v.totalTime = seg.totalTime;
+        v.currentWeight = seg.weight;
         updateStatusTable(byVeh);
         pendingShipments--;
         if (pendingShipments === 0) {
@@ -874,7 +895,7 @@ async function loadData() {
       v.currentWeight = seg.weight;
       v.status = 'Moving';
       if (seg.status === 'Pending') {
-        await updateShipmentStatus(seg.shipmentId, 'Moving', v.totalDist);
+        await updateShipmentStatus(seg.shipmentId, 'Moving', v.totalDist, v.totalTime);
         seg.status = 'Moving';
       }
 
@@ -882,29 +903,33 @@ async function loadData() {
       L.polyline(path, { color: 'blue', weight: seg.weight / 1000 + 1 }).addTo(map);
       drawVietnamBorder();
       let segmentDistance = 0;
+      let segmentTime = 0;
       for (let i = 1; i < path.length; i++) {
         const [lat1, lon1] = path[i - 1], [lat2, lon2] = path[i];
         const d = haversine(lat1, lon1, lat2, lon2);
         segmentDistance += d;
-        const speed = Math.random() * 30 + 30;
-        const t = (d / speed * 3600 * 1000) / 100;
+        const speed = Math.random() * 30 + 30; // Speed in km/h (30-60 km/h)
+        const time = d / speed; // Time in hours
+        segmentTime += time;
         v.totalDist += d;
+        v.totalTime += time;
+        const t = (d / speed * 3600 * 1000) / 100; // Convert to milliseconds for animation
         acc += t;
 
         setTimeout(() => {
           v.marker.setLatLng(path[i]);
-          v.div.innerText = `Speed: ${speed.toFixed(1)} km/h | Segment: ${d.toFixed(2)} km | Total: ${v.totalDist.toFixed(2)} km | Weight: ${seg.weight} kg`;
+          v.div.innerText = `Speed: ${speed.toFixed(1)} km/h | Segment: ${d.toFixed(2)} km | Total: ${v.totalDist.toFixed(2)} km | Time: ${formatTime(v.totalTime)} | Weight: ${seg.weight} kg`;
         }, acc);
       }
       seg.totalDistance = segmentDistance;
+      seg.totalTime = segmentTime;
       updateStatusTable(byVeh);
 
       if (segIdx === v.segments.length - 1) {
         setTimeout(async () => {
           v.status = 'Completed';
           v.currentSegment = null;
-          v.currentWeight = 0;
-          await updateShipmentStatus(seg.shipmentId, 'Completed', v.totalDist);
+          await updateShipmentStatus(seg.shipmentId, 'Completed', v.totalDist, v.totalTime);
           updateStatusTable(byVeh);
 
           pendingShipments--;

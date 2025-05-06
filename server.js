@@ -202,7 +202,7 @@ app.get('/api/shipments', async (req, res, next) => {
   try {
     let query = `
       SELECT
-        s.ShipmentID, s.ShipmentDate, s.Weight, s.Status, s.TotalDistance,
+        s.ShipmentID, s.ShipmentDate, s.Weight, s.Status, s.TotalDistance, s.TotalTime,
         tu.UnitID, tu.UnitCode, tu.Type, tu.LicensePlate,
         o.Longitude AS OriginLng, o.Latitude AS OriginLat,
         d.Longitude AS DestLng, d.Latitude AS DestLat,
@@ -244,7 +244,7 @@ app.get('/api/shipments/:id', async (req, res, next) => {
       .input('shipmentId', sql.Int, id)
       .query(`
         SELECT
-          s.ShipmentID, s.ShipmentDate, s.Weight, s.Status, s.TotalDistance,
+          s.ShipmentID, s.ShipmentDate, s.Weight, s.Status, s.TotalDistance, s.TotalTime,
           s.UnitID AS VehicleID, s.OriginWarehouseID, s.DestWarehouseID
         FROM Shipment s
         WHERE s.ShipmentID = @shipmentId
@@ -299,10 +299,11 @@ app.post('/api/shipments', async (req, res, next) => {
       .input('destWarehouseID', sql.Int, DestWarehouseID)
       .input('status', sql.NVarChar, 'Pending')
       .input('totalDistance', sql.Float, 0)
+      .input('totalTime', sql.Float, 0)
       .query(`
-        INSERT INTO Shipment (ShipmentDate, Weight, UnitID, OriginWarehouseID, DestWarehouseID, Status, TotalDistance)
+        INSERT INTO Shipment (ShipmentDate, Weight, UnitID, OriginWarehouseID, DestWarehouseID, Status, TotalDistance, TotalTime)
         OUTPUT INSERTED.ShipmentID
-        VALUES (@shipmentDate, @weight, @unitID, @originWarehouseID, @destWarehouseID, @status, @totalDistance)
+        VALUES (@shipmentDate, @weight, @unitID, @originWarehouseID, @destWarehouseID, @status, @totalDistance, @totalTime)
       `);
 
     const shipmentId = shipmentResult.recordset[0].ShipmentID;
@@ -312,9 +313,10 @@ app.post('/api/shipments', async (req, res, next) => {
       .input('shipmentId', sql.Int, shipmentId)
       .input('status', sql.NVarChar, 'Pending')
       .input('totalDistance', sql.Float, 0)
+      .input('totalTime', sql.Float, 0)
       .query(`
-        INSERT INTO ShipmentHistory (ShipmentID, Status, TotalDistance)
-        VALUES (@shipmentId, @status, @totalDistance)
+        INSERT INTO ShipmentHistory (ShipmentID, Status, TotalDistance, TotalTime)
+        VALUES (@shipmentId, @status, @totalDistance, @totalTime)
       `);
 
     res.status(201).json({ message: 'Shipment created successfully', shipmentId });
@@ -359,7 +361,7 @@ app.put('/api/shipments/:id', async (req, res, next) => {
     // Check if shipment exists and is not completed
     const shipmentCheck = await pool.request()
       .input('shipmentId', sql.Int, id)
-      .query(`SELECT Status FROM Shipment WHERE ShipmentID = @shipmentId`);
+      .query(`SELECT Status, TotalDistance, TotalTime FROM Shipment WHERE ShipmentID = @shipmentId`);
     if (shipmentCheck.recordset.length === 0) {
       return res.status(404).json({ error: 'Shipment not found' });
     }
@@ -375,10 +377,13 @@ app.put('/api/shipments/:id', async (req, res, next) => {
       .input('unitID', sql.Int, VehicleID)
       .input('originWarehouseID', sql.Int, OriginWarehouseID)
       .input('destWarehouseID', sql.Int, DestWarehouseID)
+      .input('totalDistance', sql.Float, shipmentCheck.recordset[0].TotalDistance)
+      .input('totalTime', sql.Float, shipmentCheck.recordset[0].TotalTime)
       .query(`
         UPDATE Shipment
         SET ShipmentDate = @shipmentDate, Weight = @weight, UnitID = @unitID,
-            OriginWarehouseID = @originWarehouseID, DestWarehouseID = @destWarehouseID
+            OriginWarehouseID = @originWarehouseID, DestWarehouseID = @destWarehouseID,
+            TotalDistance = @totalDistance, TotalTime = @totalTime
         WHERE ShipmentID = @shipmentId
       `);
 
@@ -390,10 +395,11 @@ app.put('/api/shipments/:id', async (req, res, next) => {
     await pool.request()
       .input('shipmentId', sql.Int, id)
       .input('status', sql.NVarChar, shipmentCheck.recordset[0].Status)
-      .input('totalDistance', sql.Float, 0)
+      .input('totalDistance', sql.Float, shipmentCheck.recordset[0].TotalDistance)
+      .input('totalTime', sql.Float, shipmentCheck.recordset[0].TotalTime)
       .query(`
-        INSERT INTO ShipmentHistory (ShipmentID, Status, TotalDistance)
-        VALUES (@shipmentId, @status, @totalDistance)
+        INSERT INTO ShipmentHistory (ShipmentID, Status, TotalDistance, TotalTime)
+        VALUES (@shipmentId, @status, @totalDistance, @totalTime)
       `);
 
     res.json({ message: 'Shipment updated successfully' });
@@ -405,12 +411,15 @@ app.put('/api/shipments/:id', async (req, res, next) => {
 // Update Shipment Status and TotalDistance
 app.patch('/api/shipments/:id/status', async (req, res, next) => {
   const { id } = req.params;
-  const { status, totalDistance } = req.body;
+  const { status, totalDistance, totalTime } = req.body;
   if (!['Pending', 'Moving', 'Completed'].includes(status)) {
-    return res.status(400).json({ error: ' BRA Invalid status' });
+    return res.status(400).json({ error: 'Invalid status' });
   }
   if (totalDistance !== undefined && (typeof totalDistance !== 'number' || totalDistance < 0)) {
     return res.status(400).json({ error: 'Invalid total distance' });
+  }
+  if (totalTime !== undefined && (typeof totalTime !== 'number' || totalTime < 0)) {
+    return res.status(400).json({ error: 'Invalid total time' });
   }
 
   try {
@@ -426,6 +435,10 @@ app.patch('/api/shipments/:id/status', async (req, res, next) => {
       query += `, TotalDistance = @totalDistance`;
       request.input('totalDistance', sql.Float, totalDistance);
     }
+    if (totalTime !== undefined) {
+      query += `, TotalTime = @totalTime`;
+      request.input('totalTime', sql.Float, totalTime);
+    }
     query += ` WHERE ShipmentID = @id`;
 
     const result = await request.query(query);
@@ -438,9 +451,10 @@ app.patch('/api/shipments/:id/status', async (req, res, next) => {
       .input('shipmentId', sql.Int, id)
       .input('status', sql.NVarChar, status)
       .input('totalDistance', sql.Float, totalDistance || 0)
+      .input('totalTime', sql.Float, totalTime || 0)
       .query(`
-        INSERT INTO ShipmentHistory (ShipmentID, Status, TotalDistance)
-        VALUES (@shipmentId, @status, @totalDistance)
+        INSERT INTO ShipmentHistory (ShipmentID, Status, TotalDistance, TotalTime)
+        VALUES (@shipmentId, @status, @totalDistance, @totalTime)
       `);
 
     res.json({ message: 'Shipment updated successfully' });
@@ -456,7 +470,7 @@ app.get('/api/shipments/:id/history', async (req, res, next) => {
     const result = await pool.request()
       .input('shipmentId', sql.Int, id)
       .query(`
-        SELECT HistoryID, Status, TotalDistance, ChangeTime
+        SELECT HistoryID, Status, TotalDistance, TotalTime, ChangeTime
         FROM ShipmentHistory
         WHERE ShipmentID = @shipmentId
         ORDER BY ChangeTime ASC
