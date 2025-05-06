@@ -3,223 +3,223 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Transportation Route Playback – Vietnam</title>
+  <title>Phát Lại Lộ Trình Vận Chuyển – Việt Nam</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css"/>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"/>
   <link rel="stylesheet" href="./styles.css"/>
 </head>
 <body>
-  <h1>Transportation Route Playback – Vietnam</h1>
+  <h1>Phát Lại Lộ Trình Vận Chuyển – Việt Nam</h1>
   <div id="controls">
-    <label for="start">Date:
+    <label for="date">Ngày:
       <input type="date" id="date" required aria-required="true">
     </label>
-    <label for="vehicleType">Vehicle Type:
-      <select id="vehicleType" aria-label="Select vehicle type">
-        <option value="">All Types</option>
-        <option value="Truck">Truck</option>
-        <option value="Van">Van</option>
+    <label for="vehicleType">Loại Xe:
+      <select id="vehicleType" aria-label="Chọn loại xe">
+        <option value="">Tất Cả Loại Xe</option>
+        <option value="Truck">Xe Tải</option>
+        <option value="Van">Xe Van</option>
       </select>
     </label>
-    <label for="destWarehouse">Destination Warehouse:
-      <select id="destWarehouse" aria-label="Select destination warehouse">
-        <option value="">All Warehouses</option>
+    <label for="destWarehouse">Kho Đích:
+      <select id="destWarehouse" aria-label="Chọn kho đích">
+        <option value="">Tất Cả Kho</option>
       </select>
     </label>
-    <button id="loadData">Load Data</button>
-    <button id="refreshPage">Refresh</button>
+    <button id="loadData">Tải Dữ Liệu</button>
+    <button id="refreshPage">Làm Mới</button>
   </div>
 
   <form id="createTripForm" aria-labelledby="formTitle" class="trip-form">
-    <h3 id="formTitle"><i class="fas fa-route"></i> Create New Trip</h3>
+    <h3 id="formTitle"><i class="fas fa-route"></i> Tạo Chuyến Hàng Mới</h3>
     <div class="form-grid">
       <div class="form-group">
         <label for="tripOriginWarehouse">
-          <i class="fas fa-warehouse"></i> Origin Warehouse
+          <i class="fas fa-warehouse"></i> Kho Xuất Phát
           <select id="tripOriginWarehouse" required aria-required="true">
-            <option value="">Select Origin</option>
+            <option value="">Chọn Kho Xuất Phát</option>
           </select>
         </label>
-        <span id="originCoords" class="coords">Coordinates: Not selected</span>
+        <span id="originCoords" class="coords">Tọa độ: Chưa chọn</span>
         <span class="error-message" id="tripOriginWarehouseError"></span>
       </div>
       <div class="form-group">
         <label for="tripDestWarehouse">
-          <i class="fas fa-warehouse"></i> Destination Warehouse
+          <i class="fas fa-warehouse"></i> Kho Đích
           <select id="tripDestWarehouse" required aria-required="true">
-            <option value="">Select Destination</option>
+            <option value="">Chọn Kho Đích</option>
           </select>
         </label>
-        <span id="destCoords" class="coords">Coordinates: Not selected</span>
+        <span id="destCoords" class="coords">Tọa độ: Chưa chọn</span>
         <span class="error-message" id="tripDestWarehouseError"></span>
       </div>
       <div class="form-group">
         <label for="tripVehicleType">
-          <i class="fas fa-truck"></i> Vehicle
+          <i class="fas fa-truck"></i> Xe
           <select id="tripVehicleType" required aria-required="true">
-            <option value="">Select Vehicle</option>
+            <option value="">Chọn Xe</option>
           </select>
         </label>
         <span class="error-message" id="tripVehicleTypeError"></span>
       </div>
       <div class="form-group">
         <label for="tripDate">
-          <i class="fas fa-calendar-alt"></i> Trip Date
+          <i class="fas fa-calendar-alt"></i> Ngày Chuyến Hàng
           <input type="date" id="tripDate" required aria-required="true">
         </label>
         <span class="error-message" id="tripDateError"></span>
       </div>
       <div class="form-group">
         <label for="tripWeight">
-          <i class="fas fa-weight-hanging"></i> Weight (kg)
-          <input type="number" id="tripWeight" min="0" step="1" placeholder="e.g., 5000" required aria-required="true">
+          <i class="fas fa-weight-hanging"></i> Trọng Lượng (kg)
+          <input type="number" id="tripWeight" min="0" step="1" placeholder="Ví dụ: 5000" required aria-required="true">
         </label>
         <span class="error-message" id="tripWeightError"></span>
       </div>
     </div>
     <div class="form-buttons">
-      <button type="submit" class="btn btn-primary"><i class="fas fa-plus"></i> Create Trip</button>
-      <button type="button" id="cancelTripForm" class="btn btn-cancel"><i class="fas fa-times"></i> Cancel</button>
+      <button type="submit" class="btn btn-primary"><i class="fas fa-plus"></i> Tạo Chuyến Hàng</button>
+      <button type="button" id="cancelTripForm" class="btn btn-cancel"><i class="fas fa-times"></i> Hủy</button>
     </div>
   </form>
 
   <form id="updateTripForm" aria-labelledby="updateFormTitle" class="trip-form" style="display: none;">
-    <h3 id="updateFormTitle"><i class="fas fa-edit"></i> Update Trip</h3>
+    <h3 id="updateFormTitle"><i class="fas fa-edit"></i> Cập Nhật Chuyến Hàng</h3>
     <input type="hidden" id="updateTripId">
     <div class="form-grid">
       <div class="form-group">
         <label for="updateTripOriginWarehouse">
-          <i class="fas fa-warehouse"></i> Origin Warehouse
+          <i class="fas fa-warehouse"></i> Kho Xuất Phát
           <select id="updateTripOriginWarehouse" required aria-required="true">
-            <option value="">Select Origin</option>
+            <option value="">Chọn Kho Xuất Phát</option>
           </select>
         </label>
-        <span id="updateOriginCoords" class="coords">Coordinates: Not selected</span>
+        <span id="updateOriginCoords" class="coords">Tọa độ: Chưa chọn</span>
         <span class="error-message" id="updateTripOriginWarehouseError"></span>
       </div>
       <div class="form-group">
         <label for="updateTripDestWarehouse">
-          <i class="fas fa-warehouse"></i> Destination Warehouse
+          <i class="fas fa-warehouse"></i> Kho Đích
           <select id="updateTripDestWarehouse" required aria-required="true">
-            <option value="">Select Destination</option>
+            <option value="">Chọn Kho Đích</option>
           </select>
         </label>
-        <span id="updateDestCoords" class="coords">Coordinates: Not selected</span>
+        <span id="updateDestCoords" class="coords">Tọa độ: Chưa chọn</span>
         <span class="error-message" id="updateTripDestWarehouseError"></span>
       </div>
       <div class="form-group">
         <label for="updateTripVehicleType">
-          <i class="fas fa-truck"></i> Vehicle
+          <i class="fas fa-truck"></i> Xe
           <select id="updateTripVehicleType" required aria-required="true">
-            <option value="">Select Vehicle</option>
+            <option value="">Chọn Xe</option>
           </select>
         </label>
         <span class="error-message" id="updateTripVehicleTypeError"></span>
       </div>
       <div class="form-group">
         <label for="updateTripDate">
-          <i class="fas fa-calendar-alt"></i> Trip Date
+          <i class="fas fa-calendar-alt"></i> Ngày Chuyến Hàng
           <input type="date" id="updateTripDate" required aria-required="true">
         </label>
         <span class="error-message" id="updateTripDateError"></span>
       </div>
       <div class="form-group">
         <label for="updateTripWeight">
-          <i class="fas fa-weight-hanging"></i> Weight (kg)
-          <input type="number" id="updateTripWeight" min="0" step="1" placeholder="e.g., 5000" required aria-required="true">
+          <i class="fas fa-weight-hanging"></i> Trọng Lượng (kg)
+          <input type="number" id="updateTripWeight" min="0" step="1" placeholder="Ví dụ: 5000" required aria-required="true">
         </label>
         <span class="error-message" id="updateTripWeightError"></span>
       </div>
     </div>
     <div class="form-buttons">
-      <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Update Trip</button>
-      <button type="button" id="cancelUpdateTripForm" class="btn btn-cancel"><i class="fas fa-times"></i> Cancel</button>
+      <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Cập Nhật Chuyến Hàng</button>
+      <button type="button" id="cancelUpdateTripForm" class="btn btn-cancel"><i class="fas fa-times"></i> Hủy</button>
     </div>
   </form>
 
   <form id="createVehicleForm" aria-labelledby="vehicleFormTitle" class="vehicle-form">
-    <h3 id="vehicleFormTitle"><i class="fas fa-truck"></i> Create New Vehicle</h3>
+    <h3 id="vehicleFormTitle"><i class="fas fa-truck"></i> Tạo Xe Mới</h3>
     <div class="form-grid">
       <div class="form-group">
         <label for="vehicleCode">
-          <i class="fas fa-id-badge"></i> Unit Code
-          <input type="text" id="vehicleCode" placeholder="e.g., TX003" required aria-required="true">
+          <i class="fas fa-id-badge"></i> Mã Xe
+          <input type="text" id="vehicleCode" placeholder="Ví dụ: TX003" required aria-required="true">
         </label>
         <span class="error-message" id="vehicleCodeError"></span>
       </div>
       <div class="form-group">
         <label for="vehicleTypeInput">
-          <i class="fas fa-truck-pickup"></i> Vehicle Type
+          <i class="fas fa-truck-pickup"></i> Loại Xe
           <select id="vehicleTypeInput" required aria-required="true">
-            <option value="">Select Type</option>
-            <option value="Truck">Truck</option>
-            <option value="Van">Van</option>
+            <option value="">Chọn Loại Xe</option>
+            <option value="Truck">Xe Tải</option>
+            <option value="Van">Xe Van</option>
           </select>
         </label>
         <span class="error-message" id="vehicleTypeError"></span>
       </div>
       <div class="form-group">
         <label for="vehicleCapacity">
-          <i class="fas fa-weight-hanging"></i> Capacity (kg)
-          <input type="number" id="vehicleCapacity" min="0" step="1" placeholder="e.g., 8000" required aria-required="true">
+          <i class="fas fa-weight-hanging"></i> Tải Trọng (kg)
+          <input type="number" id="vehicleCapacity" min="0" step="1" placeholder="Ví dụ: 8000" required aria-required="true">
         </label>
         <span class="error-message" id="vehicleCapacityError"></span>
       </div>
       <div class="form-group">
         <label for="vehicleLicensePlate">
-          <i class="fas fa-id-card"></i> License Plate
-          <input type="text" id="vehicleLicensePlate" placeholder="e.g., 51A-123.45" required aria-required="true">
+          <i class="fas fa-id-card"></i> Biển Số Xe
+          <input type="text" id="vehicleLicensePlate" placeholder="Ví dụ: 51A-123.45" required aria-required="true">
         </label>
         <span class="error-message" id="vehicleLicensePlateError"></span>
       </div>
     </div>
     <div class="form-buttons">
-      <button type="submit" class="btn btn-primary"><i class="fas fa-plus"></i> Create Vehicle</button>
-      <button type="button" id="cancelVehicleForm" class="btn btn-cancel"><i class="fas fa-times"></i> Cancel</button>
+      <button type="submit" class="btn btn-primary"><i class="fas fa-plus"></i> Tạo Xe</button>
+      <button type="button" id="cancelVehicleForm" class="btn btn-cancel"><i class="fas fa-times"></i> Hủy</button>
     </div>
   </form>
 
   <form id="updateVehicleForm" aria-labelledby="updateVehicleFormTitle" class="vehicle-form" style="display: none;">
-    <h3 id="updateVehicleFormTitle"><i class="fas fa-edit"></i> Update Vehicle</h3>
+    <h3 id="updateVehicleFormTitle"><i class="fas fa-edit"></i> Cập Nhật Xe</h3>
     <input type="hidden" id="updateVehicleId">
     <div class="form-grid">
       <div class="form-group">
         <label for="updateVehicleCode">
-          <i class="fas fa-id-badge"></i> Unit Code
-          <input type="text" id="updateVehicleCode" placeholder="e.g., TX003" required aria-required="true">
+          <i class="fas fa-id-badge"></i> Mã Xe
+          <input type="text" id="updateVehicleCode" placeholder="Ví dụ: TX003" required aria-required="true">
         </label>
         <span class="error-message" id="updateVehicleCodeError"></span>
       </div>
       <div class="form-group">
         <label for="updateVehicleTypeInput">
-          <i class="fas fa-truck-pickup"></i> Vehicle Type
+          <i class="fas fa-truck-pickup"></i> Loại Xe
           <select id="updateVehicleTypeInput" required aria-required="true">
-            <option value="">Select Type</option>
-            <option value="Truck">Truck</option>
-            <option value="Van">Van</option>
+            <option value="">Chọn Loại Xe</option>
+            <option value="Truck">Xe Tải</option>
+            <option value="Van">Xe Van</option>
           </select>
         </label>
         <span class="error-message" id="updateVehicleTypeError"></span>
       </div>
       <div class="form-group">
         <label for="updateVehicleCapacity">
-          <i class="fas fa-weight-hanging"></i> Capacity (kg)
-          <input type="number" id="updateVehicleCapacity" min="0" step="1" placeholder="e.g., 8000" required aria-required="true">
+          <i class="fas fa-weight-hanging"></i> Tải Trọng (kg)
+          <input type="number" id="updateVehicleCapacity" min="0" step="1" placeholder="Ví dụ: 8000" required aria-required="true">
         </label>
         <span class="error-message" id="updateVehicleCapacityError"></span>
       </div>
       <div class="form-group">
         <label for="updateVehicleLicensePlate">
-          <i class="fas fa-id-card"></i> License Plate
-          <input type="text" id="updateVehicleLicensePlate" placeholder="e.g., 51A-123.45" required aria-required="true">
+          <i class="fas fa-id-card"></i> Biển Số Xe
+          <input type="text" id="updateVehicleLicensePlate" placeholder="Ví dụ: 51A-123.45" required aria-required="true">
         </label>
         <span class="error-message" id="updateVehicleLicensePlateError"></span>
       </div>
     </div>
     <div class="form-buttons">
-      <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Update Vehicle</button>
-      <button type="button" id="cancelUpdateVehicleForm" class="btn btn-cancel"><i class="fas fa-times"></i> Cancel</button>
+      <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Cập Nhật Xe</button>
+      <button type="button" id="cancelUpdateVehicleForm" class="btn btn-cancel"><i class="fas fa-times"></i> Hủy</button>
     </div>
   </form>
 
@@ -229,7 +229,7 @@
 
   <div id="loading" class="loading">
     <div class="spinner"></div>
-    <span>Loading...</span>
+    <span>Đang tải...</span>
   </div>
 
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>

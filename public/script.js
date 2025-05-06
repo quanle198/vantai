@@ -13,13 +13,13 @@ let isSimulating = false;
 function formatTime(hours) {
   const minutes = hours * 60;
   if (minutes < 60) {
-    return `${minutes.toFixed(2)} min`;
+    return `${minutes.toFixed(2)} phút`;
   }
   if (hours < 24) {
-    return `${hours.toFixed(2)} hours`;
+    return `${hours.toFixed(2)} giờ`;
   }
   const days = hours / 24;
-  return `${days.toFixed(2)} days`;
+  return `${days.toFixed(2)} ngày`;
 }
 
 // Haversine Formula
@@ -65,7 +65,7 @@ async function loadVietnamGeoJSON() {
     console.log('✅ Loaded Vietnam GeoJSON');
   } catch (e) {
     console.error('❌ Failed to load GeoJSON:', e);
-    showToast('Failed to load Vietnam borders', 'error');
+    showToast('Không thể tải biên giới Việt Nam', 'error');
   }
 }
 
@@ -139,11 +139,11 @@ async function loadWarehouses() {
     const destSelect = document.getElementById('tripDestWarehouse');
     const updateOriginSelect = document.getElementById('updateTripOriginWarehouse');
     const updateDestSelect = document.getElementById('updateTripDestWarehouse');
-    select.innerHTML = '<option value="">All Warehouses</option>';
-    originSelect.innerHTML = '<option value="">Select Origin</option>';
-    destSelect.innerHTML = '<option value="">Select Destination</option>';
-    updateOriginSelect.innerHTML = '<option value="">Select Origin</option>';
-    updateDestSelect.innerHTML = '<option value="">Select Destination</option>';
+    select.innerHTML = '<option value="">Tất Cả Kho</option>';
+    originSelect.innerHTML = '<option value="">Chọn Kho Xuất Phát</option>';
+    destSelect.innerHTML = '<option value="">Chọn Kho Đích</option>';
+    updateOriginSelect.innerHTML = '<option value="">Chọn Kho Xuất Phát</option>';
+    updateDestSelect.innerHTML = '<option value="">Chọn Kho Đích</option>';
 
     warehouses.forEach(w => {
       const opt = document.createElement('option');
@@ -162,7 +162,7 @@ async function loadWarehouses() {
     updateDestSelect.addEventListener('change', updateCoordsDisplay);
   } catch (e) {
     console.error('❌ Failed to load warehouses:', e);
-    showToast('Failed to load warehouses', 'error');
+    showToast('Không thể tải danh sách kho', 'error');
   }
 }
 
@@ -172,8 +172,8 @@ async function loadVehicles() {
     vehicles = await fetch('/api/vehicles').then(r => r.json());
     const select = document.getElementById('tripVehicleType');
     const updateSelect = document.getElementById('updateTripVehicleType');
-    select.innerHTML = '<option value="">Select Vehicle</option>';
-    updateSelect.innerHTML = '<option value="">Select Vehicle</option>';
+    select.innerHTML = '<option value="">Chọn Xe</option>';
+    updateSelect.innerHTML = '<option value="">Chọn Xe</option>';
     vehicles.forEach(v => {
       const opt = document.createElement('option');
       opt.value = v.UnitID;
@@ -183,7 +183,7 @@ async function loadVehicles() {
     });
   } catch (e) {
     console.error('❌ Failed to load vehicles:', e);
-    showToast('Failed to load vehicles', 'error');
+    showToast('Không thể tải danh sách xe', 'error');
   }
 }
 
@@ -195,25 +195,25 @@ function updateCoordsDisplay(e) {
   const coordsDisplay = document.getElementById(isOrigin ? (select.id.includes('update') ? 'updateOriginCoords' : 'originCoords') : (select.id.includes('update') ? 'updateDestCoords' : 'destCoords'));
   const warehouse = warehouses.find(w => w.WarehouseID.toString() === warehouseID);
   if (warehouse && warehouse.Lat && warehouse.Lng) {
-    coordsDisplay.textContent = `Coordinates: ${warehouse.Lat.toFixed(6)}, ${warehouse.Lng.toFixed(6)}`;
+    coordsDisplay.textContent = `Tọa độ: ${warehouse.Lat.toFixed(6)}, ${warehouse.Lng.toFixed(6)}`;
   } else {
-    coordsDisplay.textContent = warehouseID ? 'Coordinates: No data' : 'Coordinates: Not selected';
+    coordsDisplay.textContent = warehouseID ? 'Tọa độ: Không có dữ liệu' : 'Tọa độ: Chưa chọn';
   }
 }
 
 // Reset Trip Form
 function resetTripForm() {
   document.getElementById('createTripForm').reset();
-  document.getElementById('originCoords').textContent = 'Coordinates: Not selected';
-  document.getElementById('destCoords').textContent = 'Coordinates: Not selected';
+  document.getElementById('originCoords').textContent = 'Tọa độ: Chưa chọn';
+  document.getElementById('destCoords').textContent = 'Tọa độ: Chưa chọn';
   clearTripFormErrors();
 }
 
 // Reset Update Trip Form
 function resetUpdateTripForm() {
   document.getElementById('updateTripForm').reset();
-  document.getElementById('updateOriginCoords').textContent = 'Coordinates: Not selected';
-  document.getElementById('updateDestCoords').textContent = 'Coordinates: Not selected';
+  document.getElementById('updateOriginCoords').textContent = 'Tọa độ: Chưa chọn';
+  document.getElementById('updateDestCoords').textContent = 'Tọa độ: Chưa chọn';
   clearUpdateTripFormErrors();
   document.getElementById('updateTripForm').style.display = 'none';
   document.getElementById('createTripForm').style.display = 'block';
@@ -279,19 +279,19 @@ async function createVehicle(event) {
 
   let hasError = false;
   if (!unitCode) {
-    document.getElementById('vehicleCodeError').textContent = 'Please enter unit code';
+    document.getElementById('vehicleCodeError').textContent = 'Vui lòng nhập mã xe';
     hasError = true;
   }
   if (!type) {
-    document.getElementById('vehicleTypeError').textContent = 'Please select vehicle type';
+    document.getElementById('vehicleTypeError').textContent = 'Vui lòng chọn loại xe';
     hasError = true;
   }
   if (!capacity || capacity <= 0) {
-    document.getElementById('vehicleCapacityError').textContent = 'Please enter a valid capacity';
+    document.getElementById('vehicleCapacityError').textContent = 'Vui lòng nhập tải trọng hợp lệ';
     hasError = true;
   }
   if (!licensePlate) {
-    document.getElementById('vehicleLicensePlateError').textContent = 'Please enter license plate';
+    document.getElementById('vehicleLicensePlateError').textContent = 'Vui lòng nhập biển số xe';
     hasError = true;
   }
   if (hasError) return;
@@ -313,18 +313,18 @@ async function createVehicle(event) {
     if (!resp.ok) {
       const errorData = await resp.json();
       if (errorData.error.includes('Unit code or license plate already exists')) {
-        document.getElementById('vehicleCodeError').textContent = 'Unit code or license plate already exists';
+        document.getElementById('vehicleCodeError').textContent = 'Mã xe hoặc biển số xe đã tồn tại';
       } else {
-        throw new Error(errorData.error || 'Failed to create vehicle');
+        throw new Error(errorData.error || 'Không thể tạo xe');
       }
       return;
     }
-    showToast('Vehicle created successfully', 'success');
+    showToast('Tạo xe thành công', 'success');
     resetVehicleForm();
     await loadVehicles();
   } catch (e) {
     console.error('❌ Failed to create vehicle:', e);
-    showToast(`Failed to create vehicle: ${e.message}`, 'error');
+    showToast(`Không thể tạo xe: ${e.message}`, 'error');
   } finally {
     setLoading(false);
   }
@@ -343,19 +343,19 @@ async function updateVehicle(event) {
 
   let hasError = false;
   if (!unitCode) {
-    document.getElementById('updateVehicleCodeError').textContent = 'Please enter unit code';
+    document.getElementById('updateVehicleCodeError').textContent = 'Vui lòng nhập mã xe';
     hasError = true;
   }
   if (!type) {
-    document.getElementById('updateVehicleTypeError').textContent = 'Please select vehicle type';
+    document.getElementById('updateVehicleTypeError').textContent = 'Vui lòng chọn loại xe';
     hasError = true;
   }
   if (!capacity || capacity <= 0) {
-    document.getElementById('updateVehicleCapacityError').textContent = 'Please enter a valid capacity';
+    document.getElementById('updateVehicleCapacityError').textContent = 'Vui lòng nhập tải trọng hợp lệ';
     hasError = true;
   }
   if (!licensePlate) {
-    document.getElementById('updateVehicleLicensePlateError').textContent = 'Please enter license plate';
+    document.getElementById('updateVehicleLicensePlateError').textContent = 'Vui lòng nhập biển số xe';
     hasError = true;
   }
   if (hasError) return;
@@ -377,18 +377,18 @@ async function updateVehicle(event) {
     if (!resp.ok) {
       const errorData = await resp.json();
       if (errorData.error.includes('Unit code or license plate already exists')) {
-        document.getElementById('updateVehicleCodeError').textContent = 'Unit code or license plate already exists';
+        document.getElementById('updateVehicleCodeError').textContent = 'Mã xe hoặc biển số xe đã tồn tại';
       } else {
-        throw new Error(errorData.error || 'Failed to update vehicle');
+        throw new Error(errorData.error || 'Không thể cập nhật xe');
       }
       return;
     }
-    showToast('Vehicle updated successfully', 'success');
+    showToast('Cập nhật xe thành công', 'success');
     resetUpdateVehicleForm();
     await loadVehicles();
   } catch (e) {
     console.error('❌ Failed to update vehicle:', e);
-    showToast(`Failed to update vehicle: ${e.message}`, 'error');
+    showToast(`Không thể cập nhật xe: ${e.message}`, 'error');
   } finally {
     setLoading(false);
   }
@@ -400,7 +400,7 @@ async function createTrip(event) {
   clearTripFormErrors();
 
   if (!geoReady) {
-    showToast('Please wait for Vietnam borders to load', 'error');
+    showToast('Vui lòng đợi biên giới Việt Nam tải xong', 'error');
     return;
   }
 
@@ -412,23 +412,23 @@ async function createTrip(event) {
 
   let hasError = false;
   if (!originWarehouseID) {
-    document.getElementById('tripOriginWarehouseError').textContent = 'Please select origin warehouse';
+    document.getElementById('tripOriginWarehouseError').textContent = 'Vui lòng chọn kho xuất phát';
     hasError = true;
   }
   if (!destWarehouseID) {
-    document.getElementById('tripDestWarehouseError').textContent = 'Please select destination warehouse';
+    document.getElementById('tripDestWarehouseError').textContent = 'Vui lòng chọn kho đích';
     hasError = true;
   }
   if (!vehicleID) {
-    document.getElementById('tripVehicleTypeError').textContent = 'Please select vehicle';
+    document.getElementById('tripVehicleTypeError').textContent = 'Vui lòng chọn xe';
     hasError = true;
   }
   if (!tripDate) {
-    document.getElementById('tripDateError').textContent = 'Please select trip date';
+    document.getElementById('tripDateError').textContent = 'Vui lòng chọn ngày chuyến hàng';
     hasError = true;
   }
   if (!weight || weight <= 0) {
-    document.getElementById('tripWeightError').textContent = 'Please enter a valid weight';
+    document.getElementById('tripWeightError').textContent = 'Vui lòng nhập trọng lượng hợp lệ';
     hasError = true;
   }
   if (hasError) return;
@@ -437,11 +437,11 @@ async function createTrip(event) {
   const destWarehouse = warehouses.find(w => w.WarehouseID.toString() === destWarehouseID);
 
   if (!originWarehouse || !originWarehouse.Lat || !originWarehouse.Lng) {
-    document.getElementById('tripOriginWarehouseError').textContent = 'Invalid origin warehouse or missing coordinates';
+    document.getElementById('tripOriginWarehouseError').textContent = 'Kho xuất phát không hợp lệ hoặc thiếu tọa độ';
     return;
   }
   if (!destWarehouse || !destWarehouse.Lat || !destWarehouse.Lng) {
-    document.getElementById('tripDestWarehouseError').textContent = 'Invalid destination warehouse or missing coordinates';
+    document.getElementById('tripDestWarehouseError').textContent = 'Kho đích không hợp lệ hoặc thiếu tọa độ';
     return;
   }
 
@@ -449,7 +449,7 @@ async function createTrip(event) {
   const dest = [destWarehouse.Lat, destWarehouse.Lng];
 
   if (!isInVietnam(origin[0], origin[1]) || !isInVietnam(dest[0], dest[1])) {
-    document.getElementById('tripOriginWarehouseError').textContent = 'Origin or destination warehouse is outside Vietnam';
+    document.getElementById('tripOriginWarehouseError').textContent = 'Kho xuất phát hoặc kho đích nằm ngoài Việt Nam';
     return;
   }
 
@@ -457,7 +457,7 @@ async function createTrip(event) {
   const path = await fetchRouteORS(origin, dest);
   if (path.length < 2) {
     setLoading(false);
-    document.getElementById('tripOriginWarehouseError').textContent = 'Unable to create a valid route';
+    document.getElementById('tripOriginWarehouseError').textContent = 'Không thể tạo lộ trình hợp lệ';
     return;
   }
 
@@ -476,11 +476,11 @@ async function createTrip(event) {
       body: JSON.stringify(shipment)
     });
     if (!resp.ok) throw new Error(await resp.text());
-    showToast('Trip created successfully', 'success');
+    showToast('Tạo chuyến hàng thành công', 'success');
     resetTripForm();
   } catch (e) {
     console.error('❌ Failed to create trip:', e);
-    showToast(`Failed to create trip: ${e.message}`, 'error');
+    showToast(`Không thể tạo chuyến hàng: ${e.message}`, 'error');
   } finally {
     setLoading(false);
   }
@@ -492,7 +492,7 @@ async function updateTrip(event) {
   clearUpdateTripFormErrors();
 
   if (!geoReady) {
-    showToast('Please wait for Vietnam borders to load', 'error');
+    showToast('Vui lòng đợi biên giới Việt Nam tải xong', 'error');
     return;
   }
 
@@ -505,23 +505,23 @@ async function updateTrip(event) {
 
   let hasError = false;
   if (!originWarehouseID) {
-    document.getElementById('updateTripOriginWarehouseError').textContent = 'Please select origin warehouse';
+    document.getElementById('updateTripOriginWarehouseError').textContent = 'Vui lòng chọn kho xuất phát';
     hasError = true;
   }
   if (!destWarehouseID) {
-    document.getElementById('updateTripDestWarehouseError').textContent = 'Please select destination warehouse';
+    document.getElementById('updateTripDestWarehouseError').textContent = 'Vui lòng chọn kho đích';
     hasError = true;
   }
   if (!vehicleID) {
-    document.getElementById('updateTripVehicleTypeError').textContent = 'Please select vehicle';
+    document.getElementById('updateTripVehicleTypeError').textContent = 'Vui lòng chọn xe';
     hasError = true;
   }
   if (!tripDate) {
-    document.getElementById('updateTripDateError').textContent = 'Please select trip date';
+    document.getElementById('updateTripDateError').textContent = 'Vui lòng chọn ngày chuyến hàng';
     hasError = true;
   }
   if (!weight || weight <= 0) {
-    document.getElementById('updateTripWeightError').textContent = 'Please enter a valid weight';
+    document.getElementById('updateTripWeightError').textContent = 'Vui lòng nhập trọng lượng hợp lệ';
     hasError = true;
   }
   if (hasError) return;
@@ -530,11 +530,11 @@ async function updateTrip(event) {
   const destWarehouse = warehouses.find(w => w.WarehouseID.toString() === destWarehouseID);
 
   if (!originWarehouse || !originWarehouse.Lat || !originWarehouse.Lng) {
-    document.getElementById('updateTripOriginWarehouseError').textContent = 'Invalid origin warehouse or missing coordinates';
+    document.getElementById('updateTripOriginWarehouseError').textContent = 'Kho xuất phát không hợp lệ hoặc thiếu tọa độ';
     return;
   }
   if (!destWarehouse || !destWarehouse.Lat || !destWarehouse.Lng) {
-    document.getElementById('updateTripDestWarehouseError').textContent = 'Invalid destination warehouse or missing coordinates';
+    document.getElementById('updateTripDestWarehouseError').textContent = 'Kho đích không hợp lệ hoặc thiếu tọa độ';
     return;
   }
 
@@ -542,7 +542,7 @@ async function updateTrip(event) {
   const dest = [destWarehouse.Lat, destWarehouse.Lng];
 
   if (!isInVietnam(origin[0], origin[1]) || !isInVietnam(dest[0], dest[1])) {
-    document.getElementById('updateTripOriginWarehouseError').textContent = 'Origin or destination warehouse is outside Vietnam';
+    document.getElementById('updateTripOriginWarehouseError').textContent = 'Kho xuất phát hoặc kho đích nằm ngoài Việt Nam';
     return;
   }
 
@@ -550,7 +550,7 @@ async function updateTrip(event) {
   const path = await fetchRouteORS(origin, dest);
   if (path.length < 2) {
     setLoading(false);
-    document.getElementById('updateTripOriginWarehouseError').textContent = 'Unable to create a valid route';
+    document.getElementById('updateTripOriginWarehouseError').textContent = 'Không thể tạo lộ trình hợp lệ';
     return;
   }
 
@@ -569,11 +569,11 @@ async function updateTrip(event) {
       body: JSON.stringify(shipment)
     });
     if (!resp.ok) throw new Error(await resp.text());
-    showToast('Trip updated successfully', 'success');
+    showToast('Cập nhật chuyến hàng thành công', 'success');
     resetUpdateTripForm();
   } catch (e) {
     console.error('❌ Failed to update trip:', e);
-    showToast(`Failed to update trip: ${e.message}`, 'error');
+    showToast(`Không thể cập nhật chuyến hàng: ${e.message}`, 'error');
   } finally {
     setLoading(false);
   }
@@ -600,7 +600,7 @@ async function populateUpdateTripForm(shipmentId) {
     document.getElementById('updateTripForm').style.display = 'block';
   } catch (e) {
     console.error('❌ Failed to load shipment data:', e);
-    showToast(`Failed to load shipment data: ${e.message}`, 'error');
+    showToast(`Không thể tải dữ liệu chuyến hàng: ${e.message}`, 'error');
   }
 }
 
@@ -621,7 +621,7 @@ async function populateUpdateVehicleForm(unitId) {
     document.getElementById('updateVehicleForm').style.display = 'block';
   } catch (e) {
     console.error('❌ Failed to load vehicle data:', e);
-    showToast(`Failed to load vehicle data: ${e.message}`, 'error');
+    showToast(`Không thể tải dữ liệu xe: ${e.message}`, 'error');
   }
 }
 
@@ -637,7 +637,7 @@ async function updateShipmentStatus(shipmentId, status, totalDistance, totalTime
     console.log(`✅ Shipment ${shipmentId} updated: Status=${status}, TotalDistance=${totalDistance}, TotalTime=${totalTime}`);
   } catch (e) {
     console.error(`❌ Failed to update shipment ${shipmentId}:`, e);
-    showToast(`Failed to update shipment: ${e.message}`, 'error');
+    showToast(`Không thể cập nhật trạng thái chuyến hàng: ${e.message}`, 'error');
   }
 }
 
@@ -649,7 +649,7 @@ async function fetchShipmentHistory(shipmentId) {
     return await resp.json();
   } catch (e) {
     console.error(`❌ Failed to fetch history for shipment ${shipmentId}:`, e);
-    showToast(`Failed to fetch shipment history: ${e.message}`, 'error');
+    showToast(`Không thể tải lịch sử chuyến hàng: ${e.message}`, 'error');
     return [];
   }
 }
@@ -662,25 +662,25 @@ async function showShipmentHistory(shipmentId, vehicleCode) {
   modal.innerHTML = `
     <div class="modal-content">
       <span class="modal-close">×</span>
-      <h3>Shipment History for Vehicle ${vehicleCode}</h3>
+      <h3>Lịch Sử Chuyến Hàng của Xe ${vehicleCode}</h3>
       <table class="history-table">
         <thead>
           <tr>
-            <th>Status</th>
-            <th>Total Distance (km)</th>
-            <th>Total Time</th>
-            <th>Change Time</th>
+            <th>Trạng Thái</th>
+            <th>Tổng Quãng Đường (km)</th>
+            <th>Tổng Thời Gian</th>
+            <th>Thời Gian Thay Đổi</th>
           </tr>
         </thead>
         <tbody>
           ${history.length ? history.map(h => `
             <tr>
-              <td>${h.Status}</td>
+              <td>${h.Status === 'Pending' ? 'Chờ xử lý' : h.Status === 'Moving' ? 'Đang di chuyển' : 'Hoàn thành'}</td>
               <td>${h.TotalDistance.toFixed(2)}</td>
               <td>${formatTime(h.TotalTime)}</td>
               <td>${new Date(h.ChangeTime).toLocaleString('vi-VN', { timeZone: 'UTC' })}</td>
             </tr>
-          `).join('') : '<tr><td colspan="4">No history available</td></tr>'}
+          `).join('') : '<tr><td colspan="4">Không có lịch sử</td></tr>'}
         </tbody>
       </table>
     </div>
@@ -702,17 +702,17 @@ function updateStatusTable(byVeh) {
     const tableContainer = document.createElement('div');
     tableContainer.id = 'statusTableContainer';
     tableContainer.innerHTML = `
-      <h3>Vehicle Status</h3>
+      <h3>Trạng Thái Xe</h3>
       <table id="statusTable">
         <thead>
           <tr>
-            <th>Vehicle</th>
-            <th>Status</th>
-            <th>Total Distance (km)</th>
-            <th>Total Time</th>
-            <th>Current Weight (kg)</th>
-            <th>History</th>
-            <th>Actions</th>
+            <th>Xe</th>
+            <th>Trạng Thái</th>
+            <th>Tổng Quãng Đường (km)</th>
+            <th>Tổng Thời Gian</th>
+            <th>Trọng Lượng Hiện Tại (kg)</th>
+            <th>Lịch Sử</th>
+            <th>Hành Động</th>
           </tr>
         </thead>
         <tbody id="statusTableBody"></tbody>
@@ -730,14 +730,14 @@ function updateStatusTable(byVeh) {
     const row = document.createElement('tr');
     row.innerHTML = `
       <td>${v.plate}</td>
-      <td id="status-${v.plate}">${v.status || 'Idle'}</td>
+      <td id="status-${v.plate}">${v.status === 'Idle' ? 'Không hoạt động' : v.status === 'Moving' ? 'Đang di chuyển' : 'Hoàn thành'}</td>
       <td id="distance-${v.plate}">${v.totalDist.toFixed(2)}</td>
       <td id="time-${v.plate}">${formatTime(v.totalTime)}</td>
       <td id="weight-${v.plate}">${v.currentWeight || 0}</td>
-      <td><button class="history-btn" data-shipment-id="${shipmentId}" data-vehicle-code="${v.plate}" ${!shipmentId ? 'disabled' : ''}>View History</button></td>
+      <td><button class="history-btn" data-shipment-id="${shipmentId}" data-vehicle-code="${v.plate}" ${!shipmentId ? 'disabled' : ''}>Xem Lịch Sử</button></td>
       <td>
-        <button class="edit-btn" data-shipment-id="${shipmentId}" data-vehicle-id="${vehicleId}" ${!shipmentId ? 'disabled' : ''}>Edit Trip</button>
-        <button class="edit-btn" data-vehicle-id="${vehicleId}" ${!vehicleId ? 'disabled' : ''}>Edit Vehicle</button>
+        <button class="edit-btn" data-shipment-id="${shipmentId}" data-vehicle-id="${vehicleId}" ${!shipmentId ? 'disabled' : ''}>Sửa Chuyến Hàng</button>
+        <button class="edit-btn" data-vehicle-id="${vehicleId}" ${!vehicleId ? 'disabled' : ''}>Sửa Xe</button>
       </td>
     `;
     tbody.appendChild(row);
@@ -767,11 +767,11 @@ function updateStatusTable(byVeh) {
 // Load and Visualize Shipments
 async function loadData() {
   if (!geoReady) {
-    showToast('Please wait for Vietnam borders to load', 'error');
+    showToast('Vui lòng đợi biên giới Việt Nam tải xong', 'error');
     return;
   }
   if (isSimulating) {
-    showToast('Simulation is still running. Please wait until completion.', 'info');
+    showToast('Mô phỏng vẫn đang chạy. Vui lòng đợi hoàn tất.', 'info');
     return;
   }
 
@@ -780,7 +780,7 @@ async function loadData() {
   const destWarehouse = document.getElementById('destWarehouse').value;
 
   if (!date) {
-    showToast('Please select date', 'error');
+    showToast('Vui lòng chọn ngày', 'error');
     return;
   }
 
@@ -796,13 +796,13 @@ async function loadData() {
   try {
     shipments = await fetch(`/api/shipments?${query}`).then(r => r.json());
     if (shipments.length === 0) {
-      showToast('No shipments found for the selected criteria', 'info');
+      showToast('Không tìm thấy chuyến hàng nào cho tiêu chí đã chọn', 'info');
       setLoading(false);
       resetLoadDataButton();
       return;
     }
   } catch (e) {
-    showToast('Failed to load shipments', 'error');
+    showToast('Không thể tải danh sách chuyến hàng', 'error');
     setLoading(false);
     resetLoadDataButton();
     return;
@@ -848,12 +848,12 @@ async function loadData() {
   Object.entries(byVeh).forEach(([code, v]) => {
     const box = document.createElement('div');
     box.className = 'vehicle-info';
-    box.innerHTML = `<b>Vehicle ${v.plate}</b><br><span id="mv-${code}">Not started</span>`;
+    box.innerHTML = `<b>Xe ${v.plate}</b><br><span id="mv-${code}">Chưa bắt đầu</span>`;
     document.getElementById('info').append(box);
     v.div = document.getElementById(`mv-${code}`);
 
     const [lat0, lon0] = v.segments[0].origin;
-    v.marker = L.marker([lat0, lon0]).addTo(map).bindTooltip(`Vehicle ${v.plate}`, {
+    v.marker = L.marker([lat0, lon0]).addTo(map).bindTooltip(`Xe ${v.plate}`, {
       permanent: true,
       direction: 'right'
     });
@@ -887,7 +887,7 @@ async function loadData() {
         pendingShipments--;
         if (pendingShipments === 0) {
           resetLoadDataButton();
-          showToast('All shipments completed', 'success');
+          showToast('Tất cả chuyến hàng đã hoàn thành', 'success');
         }
         continue;
       }
@@ -918,7 +918,7 @@ async function loadData() {
 
         setTimeout(() => {
           v.marker.setLatLng(path[i]);
-          v.div.innerText = `Speed: ${speed.toFixed(1)} km/h | Segment: ${d.toFixed(2)} km | Total: ${v.totalDist.toFixed(2)} km | Time: ${formatTime(v.totalTime)} | Weight: ${seg.weight} kg`;
+          v.div.innerText = `Tốc độ: ${speed.toFixed(1)} km/h | Đoạn đường: ${d.toFixed(2)} km | Tổng cộng: ${v.totalDist.toFixed(2)} km | Thời gian: ${formatTime(v.totalTime)} | Trọng lượng: ${seg.weight} kg`;
         }, acc);
       }
       seg.totalDistance = segmentDistance;
@@ -935,7 +935,7 @@ async function loadData() {
           pendingShipments--;
           if (pendingShipments === 0) {
             resetLoadDataButton();
-            showToast('All shipments completed', 'success');
+            showToast('Tất cả chuyến hàng đã hoàn thành', 'success');
           }
         }, acc);
       } else {
@@ -971,13 +971,13 @@ function updateChart(shipments) {
     type: 'bar',
     data: {
       labels,
-      datasets: [{ label: 'Total Weight (kg)', data: values, backgroundColor: 'rgba(40, 167, 69, 0.5)' }]
+      datasets: [{ label: 'Tổng Trọng Lượng (kg)', data: values, backgroundColor: 'rgba(40, 167, 69, 0.5)' }]
     },
     options: {
       responsive: true,
       scales: {
-        y: { beginAtZero: true, title: { display: true, text: 'Weight (kg)' } },
-        x: { title: { display: true, text: 'Date' } }
+        y: { beginAtZero: true, title: { display: true, text: 'Trọng Lượng (kg)' } },
+        x: { title: { display: true, text: 'Ngày' } }
       }
     }
   });
