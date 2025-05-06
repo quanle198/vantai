@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bảng Điều Khiển Vận Chuyển</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
+  <style>
+    .card { transition: transform 0.2s, box-shadow 0.2s; }
+    .card:hover { transform: translateY(-2px); box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1); }
+    .table-auto th, .table-auto td { border: 1px solid #e5e7eb; padding: 12px; text-align: left; }
+    .table-auto th { background: linear-gradient(to right, #2b6cb0, #4299e1); color: white; }
+    .table-auto tr:hover { background-color: #f7fafc; }
+    .gradient-bg { background: linear-gradient(135deg, #2b6cb0 0%, #48bb78 100%); }
+    .filter-btn { transition: background-color 0.2s; }
+    .filter-btn.active { background-color: #2b6cb0; color: white; }
+  </style>
+</head>
+<body class="bg-gray-100 font-sans">
+  <div class="min-h-screen gradient-bg">
+    <div class="container mx-auto p-6">
+      <!-- Header -->
+      <header class="flex justify-between items-center mb-8">
+        <h1 class="text-3xl font-bold text-white flex items-center">
+          <i class="fas fa-truck mr-2"></i> Bảng Điều Khiển Vận Chuyển
+        </h1>
+        <div class="flex items-center space-x-4">
+          <div class="relative">
+            <input type="date" id="startDate" class="p-2 rounded-lg border bg-white text-gray-700" aria-label="Ngày bắt đầu">
+            <span class="mx-2 text-white">đến</span>
+            <input type="date" id="endDate" class="p-2 rounded-lg border bg-white text-gray-700" aria-label="Ngày kết thúc">
+            <button id="applyFilter" class="ml-2 bg-white text-blue-600 p-2 rounded-lg hover:bg-blue-100">
+              <i class="fas fa-filter"></i> Lọc
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <!-- Tổng quan vận chuyển -->
+      <section class="mb-12">
+        <h2 class="text-2xl font-semibold text-white mb-4"><i class="fas fa-tachometer-alt mr-2"></i> Tổng Quan Vận Chuyển</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div class="card bg-white p-6 rounded-lg shadow-lg">
+            <h3 class="text-lg font-medium text-gray-600 flex items-center"><i class="fas fa-boxes mr-2"></i> Tổng Số Chuyến Hàng</h3>
+            <p id="totalShipments" class="text-3xl font-bold text-blue-600">0</p>
+          </div>
+          <div class="card bg-white p-6 rounded-lg shadow-lg">
+            <h3 class="text-lg font-medium text-gray-600 flex items-center"><i class="fas fa-check-circle mr-2"></i> Chuyến Hoàn Thành</h3>
+            <p id="completedShipments" class="text-3xl font-bold text-green-600">0</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Hiệu suất vận chuyển -->
+      <section class="mb-12">
+        <h2 class="text-2xl font-semibold text-white mb-4"><i class="fas fa-chart-line mr-2"></i> Hiệu Suất Vận Chuyển</h2>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div class="card bg-white p-6 rounded-lg shadow-lg">
+            <h3 class="text-lg font-medium text-gray-600 flex items-center"><i class="fas fa-weight mr-2"></i> Tổng Trọng Lượng (kg)</h3>
+            <p id="totalWeight" class="text-3xl font-bold text-blue-600">0</p>
+          </div>
+          <div class="card bg-white p-6 rounded-lg shadow-lg">
+            <h3 class="text-lg font-medium text-gray-600 flex items-center"><i class="fas fa-road mr-2"></i> Tổng Quãng Đường (km)</h3>
+            <p id="totalDistance" class="text-3xl font-bold text-blue-600">0</p>
+          </div>
+          <div class="card bg-white p-6 rounded-lg shadow-lg">
+            <h3 class="text-lg font-medium text-gray-600 flex items-center"><i class="fas fa-balance-scale mr-2"></i> Trọng Lượng TB (kg)</h3>
+            <p id="avgWeight" class="text-3xl font-bold text-blue-600">0</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Phân tích theo thời gian -->
+      <section class="mb-12">
+        <h2 class="text-2xl font-semibold text-white mb-4"><i class="fas fa-calendar-alt mr-2"></i> Phân Tích Theo Thời Gian</h2>
+        <div class="bg-white p-6 rounded-lg shadow-lg">
+          <div class="flex justify-end mb-4">
+            <button id="dailyView" class="filter-btn px-4 py-2 rounded-lg bg-gray-200 text-gray-700 active">Ngày</button>
+            <button id="monthlyView" class="filter-btn px-4 py-2 rounded-lg bg-gray-200 text-gray-700 ml-2">Tháng</button>
+          </div>
+          <canvas id="shipmentsByTimeChart" aria-label="Biểu đồ số chuyến hàng theo thời gian"></canvas>
+        </div>
+      </section>
+
+      <!-- Phân tích theo kho -->
+      <section class="mb-12">
+        <h2 class="text-2xl font-semibold text-white mb-4"><i class="fas fa-warehouse mr-2"></i> Phân Tích Theo Kho</h2>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div class="bg-white p-6 rounded-lg shadow-lg">
+            <h3 class="text-lg font-medium text-gray-600 mb-4 flex items-center"><i class="fas fa-arrow-up mr-2"></i> Top Kho Gửi Hàng</h3>
+            <div class="overflow-x-auto">
+              <table class="table-auto w-full">
+                <thead>
+                  <tr>
+                    <th>Kho</th>
+                    <th>Số Chuyến</th>
+                    <th>Tổng Trọng Lượng (kg)</th>
+                  </tr>
+                </thead>
+                <tbody id="topOriginWarehouses"></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="bg-white p-6 rounded-lg shadow-lg">
+            <h3 class="text-lg font-medium text-gray-600 mb-4 flex items-center"><i class="fas fa-arrow-down mr-2"></i> Top Kho Nhận Hàng</h3>
+            <div class="overflow-x-auto">
+              <table class="table-auto w-full">
+                <thead>
+                  <tr>
+                    <th>Kho</th>
+                    <th>Số Chuyến</th>
+                    <th>Tổng Trọng Lượng (kg)</th>
+                  </tr>
+                </thead>
+                <tbody id="topDestWarehouses"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Phân tích theo xe -->
+      <section class="mb-12">
+        <h2 class="text-2xl font-semibold text-white mb-4"><i class="fas fa-truck mr-2"></i> Phân Tích Theo Xe</h2>
+        <div class="bg-white p-6 rounded-lg shadow-lg">
+          <div class="overflow-x-auto">
+            <table class="table-auto w-full">
+              <thead>
+                <tr>
+                  <th>Xe</th>
+                  <th>Số Chuyến</th>
+                  <th>Chuyến Hoàn Thành</th>
+                  <th>Tổng Trọng Lượng (kg)</th>
+                  <th>Tổng Quãng Đường (km)</th>
+                  <th>Tổng Thời Gian</th>
+                </tr>
+              </thead>
+              <tbody id="vehiclePerformance"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <script defer src="/dashboard.js"></script>
+</body>
+</html>

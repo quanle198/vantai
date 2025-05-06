@@ -507,6 +507,155 @@ app.get('/test-map.html', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'test-map.html'));
 });
 
+// Dashboard Endpoints
+// Tổng quan vận chuyển
+app.get('/api/dashboard/overview', async (req, res, next) => {
+  const { startDate, endDate } = req.query;
+  try {
+    let query = `
+      SELECT
+        COUNT(*) AS totalShipments,
+        SUM(CASE WHEN Status = 'Completed' THEN 1 ELSE 0 END) AS completedShipments
+      FROM Shipment
+    `;
+    const request = pool.request();
+    if (startDate && endDate) {
+      query += ` WHERE ShipmentDate BETWEEN @startDate AND @endDate`;
+      request.input('startDate', sql.DateTime, new Date(startDate));
+      request.input('endDate', sql.DateTime, new Date(endDate));
+    }
+    const result = await request.query(query);
+    res.json(result.recordset[0]);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Hiệu suất vận chuyển
+app.get('/api/dashboard/efficiency', async (req, res, next) => {
+  const { startDate, endDate } = req.query;
+  try {
+    let query = `
+      SELECT
+        SUM(Weight) AS totalWeight,
+        SUM(TotalDistance) AS totalDistance,
+        AVG(Weight) AS avgWeight
+      FROM Shipment
+      WHERE Status = 'Completed'
+    `;
+    const request = pool.request();
+    if (startDate && endDate) {
+      query += ` AND ShipmentDate BETWEEN @startDate AND @endDate`;
+      request.input('startDate', sql.DateTime, new Date(startDate));
+      request.input('endDate', sql.DateTime, new Date(endDate));
+    }
+    const result = await request.query(query);
+    res.json({
+      totalWeight: result.recordset[0].totalWeight || 0,
+      totalDistance: result.recordset[0].totalDistance || 0,
+      avgWeight: result.recordset[0].avgWeight || 0
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Phân tích theo thời gian
+app.get('/api/dashboard/time-analysis', async (req, res, next) => {
+  const { type = 'daily', startDate, endDate } = req.query;
+  try {
+    let query = `
+      SELECT
+        ${type === 'monthly' ? "CONVERT(VARCHAR(7), ShipmentDate, 120)" : "CONVERT(VARCHAR(10), ShipmentDate, 120)"} AS date,
+        COUNT(*) AS shipmentCount
+      FROM Shipment
+    `;
+    const request = pool.request();
+    if (startDate && endDate) {
+      query += ` WHERE ShipmentDate BETWEEN @startDate AND @endDate`;
+      request.input('startDate', sql.DateTime, new Date(startDate));
+      request.input('endDate', sql.DateTime, new Date(endDate));
+    }
+    query += ` GROUP BY ${type === 'monthly' ? "CONVERT(VARCHAR(7), ShipmentDate, 120)" : "CONVERT(VARCHAR(10), ShipmentDate, 120)"} ORDER BY date`;
+    const result = await request.query(query);
+    res.json(result.recordset);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Phân tích theo kho
+app.get('/api/dashboard/warehouse-analysis', async (req, res, next) => {
+  const { startDate, endDate } = req.query;
+  try {
+    let originQuery = `
+      SELECT
+        w.WarehouseName,
+        COUNT(*) AS shipmentCount,
+        SUM(s.Weight) AS totalWeight
+      FROM Shipment s
+      JOIN Warehouse w ON s.OriginWarehouseID = w.WarehouseID
+    `;
+    let destQuery = `
+      SELECT
+        w.WarehouseName,
+        COUNT(*) AS shipmentCount,
+        SUM(s.Weight) AS totalWeight
+      FROM Shipment s
+      JOIN Warehouse w ON s.DestWarehouseID = w.WarehouseID
+    `;
+    const originRequest = pool.request();
+    const destRequest = pool.request();
+    if (startDate && endDate) {
+      originQuery += ` WHERE s.ShipmentDate BETWEEN @startDate AND @endDate`;
+      destQuery += ` WHERE s.ShipmentDate BETWEEN @startDate AND @endDate`;
+      originRequest.input('startDate', sql.DateTime, new Date(startDate));
+      originRequest.input('endDate', sql.DateTime, new Date(endDate));
+      destRequest.input('startDate', sql.DateTime, new Date(startDate));
+      destRequest.input('endDate', sql.DateTime, new Date(endDate));
+    }
+    originQuery += ` GROUP BY w.WarehouseName ORDER BY shipmentCount DESC`;
+    destQuery += ` GROUP BY w.WarehouseName ORDER BY shipmentCount DESC`;
+    const originResult = await originRequest.query(originQuery);
+    const destResult = await destRequest.query(destQuery);
+    res.json({
+      originWarehouses: originResult.recordset,
+      destWarehouses: destResult.recordset
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Phân tích theo xe
+app.get('/api/dashboard/vehicle-analysis', async (req, res, next) => {
+  const { startDate, endDate } = req.query;
+  try {
+    let query = `
+      SELECT
+        tu.LicensePlate,
+        COUNT(*) AS totalShipments,
+        SUM(CASE WHEN s.Status = 'Completed' THEN 1 ELSE 0 END) AS completedShipments,
+        SUM(CASE WHEN s.Status = 'Completed' THEN s.Weight ELSE 0 END) AS totalWeight,
+        SUM(CASE WHEN s.Status = 'Completed' THEN s.TotalDistance ELSE 0 END) AS totalDistance,
+        SUM(CASE WHEN s.Status = 'Completed' THEN s.TotalTime ELSE 0 END) AS totalTime
+      FROM Shipment s
+      JOIN TransportUnit tu ON s.UnitID = tu.UnitID
+    `;
+    const request = pool.request();
+    if (startDate && endDate) {
+      query += ` WHERE s.ShipmentDate BETWEEN @startDate AND @endDate`;
+      request.input('startDate', sql.DateTime, new Date(startDate));
+      request.input('endDate', sql.DateTime, new Date(endDate));
+    }
+    query += ` GROUP BY tu.LicensePlate ORDER BY totalShipments DESC`;
+    const result = await request.query(query);
+    res.json(result.recordset);
+  } catch (err) {
+    next(err);
+  }
+});
+
 // Error Handling Middleware
 app.use((err, req, res, next) => {
   console.error(`❌ Error in ${req.method} ${req.url}:`, err);
